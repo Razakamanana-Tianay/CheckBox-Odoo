@@ -1,0 +1,30 @@
+{
+  "version": "17.0",
+  "extends": "common",
+  "_verified": "checkbox rules verify --version 17.0 --odoo-src .odoo-src/17.0, 2026-09-15, against a sparse clone of github.com/odoo/odoo@17.0 (odoo/addons/base, addons/account, addons/stock)",
+  "models": {
+    "account.move": {
+      "tier": "red",
+      "methods": {
+        "_post": "red",
+        "action_post": "red",
+        "button_draft": "red"
+      },
+      "source": "addons/account/models/account_move.py"
+    },
+    "stock.move": {
+      "tier": "red",
+      "methods": {
+        "_action_done": "red"
+      },
+      "source": "addons/stock/models/stock_move.py"
+    },
+    "stock.picking": {
+      "tier": "amber",
+      "methods": {
+        "button_validate": "red"
+      },
+      "source": "addons/stock/models/stock_picking.py"
+    }
+  }
+}

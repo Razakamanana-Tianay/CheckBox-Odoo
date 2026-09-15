@@ -13,11 +13,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-_DEFAULT: dict[str, Any] = {
-    "touched_addons": [],
-    "cards_seen": [],
-    "stop_block_count": 0,
-}
+
+def _default() -> dict[str, Any]:
+    # Fresh lists/dicts every call: `load()` hands callers a copy of the
+    # defaults, so the nested lists must not be shared module globals, or a
+    # `record_touched_addon(...).append(...)` would leak across sessions:
+    # `dict(_DEFAULT)` shallow-copies, leaving every copy pointing at the
+    # same nested list object.
+    return {"touched_addons": [], "cards_seen": [], "stop_block_count": 0}
+
+
+_DEFAULT = _default()
 
 
 def _session_path(root: Path, session_id: str) -> Path:
@@ -27,13 +33,13 @@ def _session_path(root: Path, session_id: str) -> Path:
 def load(root: Path, session_id: str) -> dict[str, Any]:
     path = _session_path(root, session_id)
     if not path.is_file():
-        return dict(_DEFAULT)
+        return _default()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return dict(_DEFAULT)
-    merged = dict(_DEFAULT)
-    merged.update({k: v for k, v in data.items() if k in _DEFAULT})
+        return _default()
+    merged = _default()
+    merged.update({k: v for k, v in data.items() if k in merged})
     return merged
 
 

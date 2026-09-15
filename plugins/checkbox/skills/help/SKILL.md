@@ -21,7 +21,8 @@ Automatic (no command needed):
   verdict at .checkbox/decisions/NNNN-slug.md.
 
 Human-only, from your own terminal (never run by the agent):
-  checkbox approve NNNN     approve a proposed card
+  checkbox approve NNNN     approve a proposed card (red cards need a
+                            ledger-reviewer report attached first)
 
 CLI (works without Claude Code too):
   checkbox doctor
@@ -30,10 +31,18 @@ CLI (works without Claude Code too):
   checkbox card next-id|validate <file>
   checkbox mode show|set <level>
   checkbox search "<query>" [--kind source] [--profile <file>]
+  checkbox classify <file> [--version|--profile|--root]
+  checkbox rules verify --version <v> --odoo-src <path>
+
+Automatic guard (strict mode only):
+  Editing a custom addon with no approved card is denied (PreToolUse);
+  in full mode the same situation only gets a reminder, not a denial.
+  Every edit is classified green/amber/red afterward (PostToolUse), and
+  stopping is blocked once if addon files were touched with no card
+  covering them (Stop).
 
 Current status: `checkbox search` covers `source` evidence only (addon
-manifests, res.config.settings fields/views) -- `docs` and `oca` evidence,
-the risk classifier, and the PreToolUse/PostToolUse/Stop guard are not
-implemented yet (tracked as P3 follow-up / P4 in docs/ARCHITECTURE.md) --
-say so if asked, don't imply they already run.
+manifests, res.config.settings fields/views) -- `docs` and `oca` evidence
+aren't indexed yet (tracked as a P3 follow-up in docs/ARCHITECTURE.md).
+Say so if asked, don't imply they already run.
 ```

@@ -9,16 +9,21 @@ how strict checkbox is.
 
 Valid levels: `off`, `lite`, `full`, `strict`. `full` is the default.
 
-- `off` -- no ladder injection, no guard (guard ships in P4).
+- `off` -- no ladder injection, no guard.
 - `lite` -- the compact ladder only, at session start; no per-turn reminder
   or subagent injection.
-- `full` -- the complete ladder at session start, a compact per-turn
-  reminder, and injection into subagents. No hard enforcement.
-- `strict` -- same content as `full` for now. The difference (denying an
-  edit that has no approved card) is a P4 feature; don't tell the user
-  edits are being blocked until that guard actually exists --
-  `docs/notes/platform-facts.md` §1.8 and `rules/ladder.md`'s render logic
-  are explicit that `strict` doesn't yet change behaviour beyond `full`.
+- `full` -- the complete ladder, a compact per-turn reminder, and subagent
+  injection. Edits under a `custom_addons` root with no approved card get a
+  reminder in context (`PreToolUse` `hookSpecificOutput.additionalContext`),
+  but the edit is allowed. `PostToolUse` still classifies the file's risk
+  tier and injects it. `Stop` still blocks once if addon files were touched
+  with no card covering them (`hooks/stop.py`).
+- `strict` -- the ladder text itself reads the same as `full` (it never
+  claimed enforcement details in the first place), but `hooks/pre_edit.py`
+  and `hooks/pre_bash.py` now actually **deny** the edit
+  (`permissionDecision: deny`) when no approved card covers the addon,
+  instead of just reminding. Tell the user this is real now -- it wasn't
+  before P4 landed.
 
 ## Steps
 

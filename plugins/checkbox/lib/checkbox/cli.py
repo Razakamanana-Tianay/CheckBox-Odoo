@@ -8,12 +8,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from checkbox import approvals as approvals_mod
 from checkbox import card as card_mod
 from checkbox import ladder as ladder_mod
 from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
 from checkbox.knowledge import search as search_mod
 from checkbox.paths import find_project_root
+from checkbox.risk import classify as classify_mod
+from checkbox.risk import rules as rules_mod
 
 
 def _print(data: dict[str, Any], as_json: bool) -> None:
@@ -176,10 +179,71 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rules_verify(args: argparse.Namespace) -> int:
+    from pathlib import Path as _P
+
+    odoo_src = _P(args.odoo_src)
+    if not odoo_src.is_dir():
+        print(f"error: odoo source dir not found: {odoo_src}", file=sys.stderr)
+        return 1
+    errors = rules_mod.verify(args.version, odoo_src)
+    if errors:
+        for error in errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    overlay = rules_mod.load_version(args.version)
+    models = overlay.get("models", {})
+    method_count = sum(len(m.get("methods", {})) for m in models.values())
+    _print(
+        {"version": args.version, "models": len(models), "methods": method_count, "verified": True},
+        args.json,
+    )
+    return 0
+
+
+def cmd_classify(args: argparse.Namespace) -> int:
+    from pathlib import Path as _P
+
+    path = _P(args.path)
+    if not path.is_file():
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 1
+    version = args.version
+    if not version and args.profile:
+        prof = profile_mod.load_file(Path(args.profile))
+        version = getattr(prof, "odoo_version", None)
+    if not version and args.root:
+        try:
+            prof = profile_mod.load(_P(args.root))
+            version = getattr(prof, "odoo_version", None)
+        except FileNotFoundError:
+            pass
+    if not version:
+        version = "18.0"
+    result = classify_mod.classify_file(path, version)
+    _print(result, args.json)
+    return 0
+
+
+def cmd_approve(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    try:
+        record = approvals_mod.approve(root, args.card_id)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    _print(record, args.json)
+    return 0
+
+
 _HOOK_MAIN = {
     "session-start": "checkbox.hooks.session_start",
     "prompt": "checkbox.hooks.prompt",
     "subagent-start": "checkbox.hooks.subagent_start",
+    "pre-edit": "checkbox.hooks.pre_edit",
+    "pre-bash": "checkbox.hooks.pre_bash",
+    "post-edit": "checkbox.hooks.post_edit",
+    "stop": "checkbox.hooks.stop",
 }
 
 
@@ -269,6 +333,32 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--json", action="store_true")
     search.set_defaults(func=cmd_search)
+
+    rules_parser = sub.add_parser("rules", help="risk rules")
+    rules_sub = rules_parser.add_subparsers(dest="rules_command", required=True)
+    verify = rules_sub.add_parser(
+        "verify", help="verify risk rules against a real Odoo source checkout"
+    )
+    verify.add_argument("--version", required=True, help="odoo version, e.g. 18.0")
+    verify.add_argument("--odoo-src", required=True, help="path to odoo source checkout root")
+    verify.add_argument("--json", action="store_true")
+    verify.set_defaults(func=cmd_rules_verify)
+
+    classify_parser = sub.add_parser("classify", help="classify a file's blast-radius tier")
+    classify_parser.add_argument("path", help="file to classify")
+    classify_parser.add_argument("--version", default=None, help="odoo version (e.g. 18.0)")
+    classify_parser.add_argument("--profile", default=None, help="path to a profile JSON file")
+    classify_parser.add_argument("--root", default=None, help="project root")
+    classify_parser.add_argument("--json", action="store_true")
+    classify_parser.set_defaults(func=cmd_classify)
+
+    approve_parser = sub.add_parser(
+        "approve", help="human-only: approve a card (writes approvals.json)"
+    )
+    approve_parser.add_argument("card_id", help="4-digit card id, e.g. 0007")
+    approve_parser.add_argument("--root", default=None)
+    approve_parser.add_argument("--json", action="store_true")
+    approve_parser.set_defaults(func=cmd_approve)
 
     return parser
 

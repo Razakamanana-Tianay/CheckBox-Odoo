@@ -1,0 +1,26 @@
+{
+  "version": "common",
+  "_source": "docs/ARCHITECTURE.md §6.1 (tier definitions/examples) and §6.2 (classifier detection list). These are checkbox's own policy choices about a construct's blast radius, not Odoo facts -- `checkbox rules verify` only checks the per-version model/method entries in 17.0.json/18.0.json/19.0.json against real source, not this file.",
+  "python_calls": {
+    "sudo": { "tier": "red", "detail": "sudo() bypasses access rights -- always read every line" },
+    "with_user": { "tier": "red", "detail": "with_user() runs as another user, same exposure as sudo()" },
+    "execute": { "tier": "red", "on_attribute_of": ["cr", "_cr", "env.cr"], "detail": "raw SQL bypasses ORM constraints and access rights" }
+  },
+  "python_names": {
+    "SUPERUSER_ID": { "tier": "red", "detail": "superuser context bypasses access rights" }
+  },
+  "controller_auth": {
+    "public": { "tier": "red", "detail": "publicly reachable controller, no authentication" },
+    "none": { "tier": "red", "detail": "publicly reachable controller, no authentication" }
+  },
+  "controller_csrf_exempt": {
+    "tier": "red",
+    "detail": "csrf=False on a controller removes CSRF protection"
+  },
+  "xml_patterns": {
+    "ir.rule": { "tier": "red", "detail": "record rule -- changes who can see/write which records" },
+    "ir.model.access": { "tier": "amber", "detail": "access rights CSV, per §6.1's amber row" },
+    "groups_on_menu_or_action": { "tier": "amber", "detail": "changes who can see a menu/action; not itself ledger-critical, but security-adjacent -- checkbox's own default, not an ARCHITECTURE.md-cited tier" },
+    "noupdate_data": { "tier": "amber", "detail": "data marked noupdate is usually meant to survive upgrades untouched; flagging for a second look, not an ARCHITECTURE.md-cited tier -- a data migration on already-posted records is red per §6.1, but that needs the target model's own tier, not this generic flag" }
+  }
+}

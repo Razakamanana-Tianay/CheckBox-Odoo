@@ -8,12 +8,18 @@ Level semantics (not fully specified in ARCHITECTURE.md as written -- this
 fills that gap with the smallest honest choice, per non-negotiable #8):
   - "off": caller emits nothing; render() is not even called.
   - "lite": ladder.compact.md, for a low-friction per-turn nudge.
-  - "full", "strict": ladder.md in full. They render identically for now
-    because the thing that would make strict different -- the PreToolUse
-    hard deny -- doesn't exist until P4; injecting an "edits are blocked"
-    claim before that guard is real would violate non-negotiable #6
-    (injected text must be factual). Add the enforcement clause here when
-    P4 lands, not before.
+  - "full", "strict": ladder.md in full. The *rendered text* is identical
+    for both -- it never claimed anything about enforcement, so there was
+    never anything to correct there. What differs is real, out-of-band
+    behaviour: as of P4, hooks/pre_edit.py and hooks/pre_bash.py actually
+    deny in strict (PreToolUse `permissionDecision: deny`) and only remind
+    in full. That split lives entirely in the guard hooks, deliberately
+    not duplicated into this text -- the deny reason the agent sees when it
+    actually happens is more concrete and more current than any summary
+    the ladder could carry, and the rules/CLAUDE.md placeholder contract
+    ("an unknown placeholder is a test failure") is a reason to keep this
+    template's placeholder set exactly as documented, not a reason to work
+    around it.
 """
 
 from __future__ import annotations
