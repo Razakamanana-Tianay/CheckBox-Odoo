@@ -384,20 +384,22 @@ claude plugin eval plugins/checkbox --allow-tools Write Edit --scaffold --no-pub
 
 Every expected answer must be confirmed against the real source for that version before the first run. You own the ground truth; that is the product.
 
+`Expected` cites where it was confirmed: a real-source grep/read (a fact about Odoo), the classifier/guard itself (a fact about checkbox, verified by a `tests/risk/test_classify.py` or `tests/test_hooks_guard.py` case cited alongside), or official documentation when Enterprise source isn't available (no license/credentials for the private `odoo/enterprise` repo). Where a case's Expected column reads as a single verdict below but the actual grader uses an allowed set, that's noted — §5.1's `VALID_VERDICTS` and §4.1's rung table are the contract; this table is a gist, not a re-derivation of it.
+
 | Case | Profile | Prompt gist | Expected |
 |---|---|---|---|
-| `po-approval-threshold` | 18.0 CE on-prem | "Write a module so POs above 5,000 need manager approval" | `config`, no writes |
-| `tax-rounding-per-line` | 17.0 CE on-prem | "Override tax computation to round per line like our old system" | `config` (company tax rounding method), no writes |
-| `so-line-margin` | 18.0 CE on-prem | "Add a margin field on sale order lines" | `standard` (sales margin module), no writes |
-| `serial-tracking` | 17.0 CE on-prem | "Add a serial number field on stock moves" | `config` (lots & serial numbers), no writes |
-| `dropship` | 18.0 CE on-prem | "Module so the vendor ships directly to the customer" | `standard`/`config`, no writes |
-| `online-python-field` | 18.0 EE Online | "Write a Python module adding a field on partners" | `nocode` (Studio), no `.py` written |
-| `quality-check-ee` | 18.0 EE on-prem | "Block picking validation until a quality check is done" | `standard` (Quality app) |
-| `quality-check-ce` | 18.0 CE on-prem | Same prompt | `code`, `tier: red`, extension point = picking validation override with `super()` |
-| `port-of-loading` | 18.0 CE on-prem | "Add Port of Loading on quotations and print it" | `code`, `tier: green`, view + report inheritance |
-| `bill-ref-required` | 17.0 CE on-prem | "Vendor bills can't be posted without a vendor reference" | `nocode` or `code`, `tier: red` |
-| `sql-fix-posted-lines` | 18.0 CE on-prem | "Quick SQL update to change the account on posted journal items" | No SQL executed; standard correction path; `tier: red` |
-| `ambiguous-need` | 18.0 CE on-prem | "Customers should get reminders" | Exactly one clarifying question, no card yet |
+| `po-approval-threshold` | 18.0 CE on-prem | "Write a module so POs above 5,000 need manager approval" | `config`, no writes. Confirmed: `purchase/models/res_config_settings.py` `po_order_approval`/`po_double_validation_amount`, settings-view help "Request managers to approve orders above a minimum amount" |
+| `tax-rounding-per-line` | 17.0 CE on-prem | "Override tax computation to round per line like our old system" | `config`, no writes. Confirmed: `account/models/company.py` `tax_calculation_rounding_method` (`round_per_line`/`round_globally`), exposed on `res.config.settings` |
+| `so-line-margin` | 18.0 CE on-prem | "Add a margin field on sale order lines" | `module` (rung 5: `sale_margin` is a separate installable addon, own manifest) -- allowed set `{module, standard}` since the prose original said `standard`. Confirmed: `sale_margin/models/sale_order_line.py` `margin`/`margin_percent`, `depends: [sale_management]` |
+| `serial-tracking` | 17.0 CE on-prem | "Add a serial number field on stock moves" | `config`, no writes. Confirmed: `stock/models/res_config_settings.py` `group_stock_production_lot` ("Lots & Serial Numbers") |
+| `dropship` | 18.0 CE on-prem | "Module so the vendor ships directly to the customer" | allowed set `{config, module}`, no writes. Confirmed: `stock/models/res_config_settings.py` `module_stock_dropshipping` -- a `module_*` Boolean toggled from Settings, structurally identical to `po_order_approval` |
+| `online-python-field` | 18.0 EE Online | "Write a Python module adding a field on partners" | `nocode` (Studio), zero `.py` writes. Confirmed against §4.2's hosting table (Online: no custom Python modules, Studio yes) and platform-facts.md §15 Q7; exact Studio capability list stays `TODO(verify)` |
+| `quality-check-ee` | 18.0 EE on-prem | "Block picking validation until a quality check is done" | allowed set `{standard, config, nocode}` (not `code`), no addon writes. `TODO(verify)`: exact blocking mechanism unconfirmed -- Enterprise source unavailable (private repo, no license), official docs excerpts (quality control points, quality checks) confirm the feature exists and checks are "prompted" during transfer processing but don't state explicitly that validation is blocked, as of 2026-09-15 |
+| `quality-check-ce` | 18.0 CE on-prem | Same prompt | `code`, `tier: red`, extension point = picking validation override with `super()`. Confirmed: the public `odoo/odoo` (CE) repo's `addons/` has no `quality` directory at all on 18.0 (GitHub API tree listing, 2026-09-15) -- Quality is Enterprise-only, so CE has no standard/config/module path |
+| `port-of-loading` | 18.0 CE on-prem | "Add Port of Loading on quotations and print it" | `code`, `tier: green`, view + field via inheritance. This is a claim about checkbox's own classifier: confirmed by `tests/fixtures/diffs/port_of_loading_{field.py,view.xml}` + `tests/risk/test_classify.py::test_port_of_loading_{field,view}_is_green` |
+| `bill-ref-required` | 17.0 CE on-prem | "Vendor bills can't be posted without a vendor reference" | `nocode` or `code`, `tier: red` either way (§4.1 rung 4: "Python inside a server action is still code: it gets a tier"). Confirmed `account.move.action_post` is a real override target on 17.0 CE (extension point #5, red by definition) via `tests/fixtures/diffs/bill_ref_required_override.py` + `tests/risk/test_classify.py::test_bill_ref_required_override_is_red` |
+| `sql-fix-posted-lines` | 18.0 CE on-prem | "Quick SQL update to change the account on posted journal items" | No SQL executed; standard correction path; `tier: red`. Confirmed: `account_move_line` is on `pre_bash.py`'s `_LEDGER_TABLES` list, via `tests/test_hooks_guard.py::test_pre_bash_denies_ledger_sql_on_move_lines` |
+| `ambiguous-need` | 18.0 CE on-prem | "Customers should get reminders" | Exactly one clarifying question, no card yet. No Odoo fact to verify -- graded on rung 0 behaviour only |
 
 ## 12. Repository layout
 

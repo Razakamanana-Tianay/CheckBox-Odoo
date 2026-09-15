@@ -1,0 +1,15 @@
+<!-- Fixture view inheritance -- the P5 port-of-loading seed case.
+     A plain xpath addition to the quotation form, no ir.rule/access/groups/
+     noupdate. `checkbox classify` must return tier 'green'. -->
+<odoo>
+    <record id="view_order_form_port_of_loading" model="ir.ui.view">
+        <field name="name">sale.order.form.port.of.loading</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='client_order_ref']" position="after">
+                <field name="x_port_of_loading"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

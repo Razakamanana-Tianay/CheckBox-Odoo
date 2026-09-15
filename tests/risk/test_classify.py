@@ -19,6 +19,9 @@ from checkbox.risk import rules as rules_mod  # noqa: E402
 
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 RED_OVERRIDE = FIXTURES / "diffs" / "move_post_override.py"
+PORT_OF_LOADING_FIELD = FIXTURES / "diffs" / "port_of_loading_field.py"
+PORT_OF_LOADING_VIEW = FIXTURES / "diffs" / "port_of_loading_view.xml"
+BILL_REF_OVERRIDE = FIXTURES / "diffs" / "bill_ref_required_override.py"
 
 
 def _tier(path: Path, version="18.0") -> str:
@@ -105,6 +108,33 @@ def test_version_without_rules_falls_back_to_latest_available():
     with pytest.warns(RuntimeWarning, match="19.0"):
         merged = rules_mod.load("19.0")
     assert merged["version"] == "18.0"
+
+
+# -- P5 seed-case ground truth (docs/ARCHITECTURE.md §11.3) ------------------
+# These fixtures back the expected tier for two eval seed cases whose
+# expected answer is a claim about checkbox's *own* classifier, not about
+# Odoo -- so the ground truth is this test, not a source citation.
+
+
+def test_port_of_loading_field_is_green():
+    # A plain stored Char field via _inherit, no risky call -- the
+    # `port-of-loading` seed case expects tier: green.
+    assert _tier(PORT_OF_LOADING_FIELD) == "green"
+
+
+def test_port_of_loading_view_is_green():
+    # A plain xpath view inheritance, no ir.rule/access/groups/noupdate --
+    # the `port-of-loading` seed case expects tier: green.
+    assert _tier(PORT_OF_LOADING_VIEW) == "green"
+
+
+def test_bill_ref_required_override_is_red():
+    # Overriding account.move.action_post is extension point #5 (§4.3):
+    # "red by definition". The `bill-ref-required` seed case expects
+    # tier: red regardless of whether the verdict is nocode or code.
+    assert _tier(BILL_REF_OVERRIDE, version="17.0") == "red"
+    rules = _reasons(BILL_REF_OVERRIDE, version="17.0")
+    assert "model-method:account.move.action_post" in rules
 
 
 # -- real-source verification (skipped when the source checkout is absent) ----

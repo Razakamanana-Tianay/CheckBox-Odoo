@@ -125,6 +125,22 @@ def test_pre_bash_denies_ledger_sql(capsys):
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+def test_pre_bash_denies_ledger_sql_on_move_lines(capsys):
+    # P5 `sql-fix-posted-lines` seed case ground truth: account_move_line
+    # (not just account_move) is on the ledger table list.
+    pre_bash._run(
+        {
+            "cwd": str(PROJECT_18CE),
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": 'psql -c "UPDATE account_move_line SET account_id=42 WHERE move_id=7"'
+            },
+        }
+    )
+    out = capsys.readouterr().out
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
 def test_post_edit_emits_red_context_and_records_addon(capsys):
     session_file = PROJECT_18CE / ".checkbox" / ".session" / f"{SESSION_ID}.json"
     session_file.unlink(missing_ok=True)
