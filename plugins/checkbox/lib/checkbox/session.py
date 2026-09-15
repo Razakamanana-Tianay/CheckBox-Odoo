@@ -1,10 +1,10 @@
 """Per-session state: `.checkbox/.session/<session_id>.json`.
 
 Tracks what a hook needs across events in one Claude Code session without a
-platform-provided mechanism for it (see docs/notes/platform-facts.md §1.8:
-there is no documented Stop-hook loop-protection flag, so the Stop hook's
-single-block behaviour is built on this file instead). Gitignored --
-session state is never committed (see repo .gitignore).
+platform-provided mechanism for it: there is no documented Stop-hook
+loop-protection flag, so the Stop hook's single-block behaviour is built on
+this file instead. Gitignored -- session state is never committed (see repo
+.gitignore).
 """
 
 from __future__ import annotations

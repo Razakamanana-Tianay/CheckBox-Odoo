@@ -22,8 +22,8 @@ for this project.
      `custom_addons`/`third_party_addons` -- `detect` deliberately never
      guesses which addon roots hold custom code, see profile.py), ask for it
      directly. For `hosting` specifically: there is no reliable local
-     signal for Odoo.sh (checked in docs/notes/platform-facts.md §6.1), so
-     always ask rather than guessing from environment variables.
+     signal for Odoo.sh, so always ask rather than guessing from environment
+     variables.
    - Never silently accept a detected value without showing the user what
      it is and where it came from.
 3. **Write.** Once every field is confirmed, pipe the completed profile as

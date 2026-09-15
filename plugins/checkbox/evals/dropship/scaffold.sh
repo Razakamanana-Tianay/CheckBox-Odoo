@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs "as you", outside the agent's sandbox, only under --scaffold
-# (docs/notes/platform-facts.md §3.1). Copies the same hand-mimicked,
+# (runs as the invoking user, outside the agent sandbox). Copies the same hand-mimicked,
 # real-source-verified stub used by tests/test_profile.py etc. into the
 # empty workspace, so `checkbox search` has something real to index.
 #

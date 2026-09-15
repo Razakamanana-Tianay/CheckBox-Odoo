@@ -41,7 +41,6 @@ The full design is in `docs/ARCHITECTURE.md`. Read it before any structural chan
 ```
 CLAUDE.md                       ← you are here
 docs/ARCHITECTURE.md            ← design, plan, decisions, open questions
-docs/notes/platform-facts.md    ← verified Claude Code facts (P0 output)
 .claude-plugin/marketplace.json ← this repo is also a marketplace
 plugins/checkbox/               ← the plugin (see its CLAUDE.md)
   lib/checkbox/                 ← core package (see its CLAUDE.md)
@@ -74,7 +73,7 @@ plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.p
 plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC"
 
 # hook dry-runs (stdin payloads in tests/fixtures/hooks/)
-# SessionStart/UserPromptSubmit print plain text (platform-facts.md §1.6), not JSON:
+# SessionStart/UserPromptSubmit print plain text, not JSON:
 plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json
 # SubagentStart and PreToolUse (P4) use the hookSpecificOutput JSON form:
 plugins/checkbox/bin/checkbox hook subagent-start < tests/fixtures/hooks/subagent_start.json | python3 -m json.tool
@@ -101,8 +100,8 @@ claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --n
 
 ## Workflow: explore → plan → implement → verify
 
-0. **Orient.** Before anything else, read `docs/notes/status.md` for the current phase and any settled-but-not-obvious decisions, then `git log --oneline -15` and `git status` — if either shows activity you don't recognize, another session may be active on this repo (check with a multi-session tool if you have one); investigate and reconcile before building on top of it, don't guess or silently overwrite. This step exists because skipping it once caused two sessions to build incompatible designs for the same subsystem (docs/notes/status.md has the full story).
-1. **Explore.** Read the relevant section of `docs/ARCHITECTURE.md` and the nested `CLAUDE.md` of the area you touch. For anything about Claude Code behaviour, read `docs/notes/platform-facts.md` first. If the fact is not there, verify it at https://code.claude.com/docs (plugins-reference, hooks, plugin-evals, skills, sub-agents) and add it to that file with the link and date.
+0. **Orient.** Read the current phase and any settled-but-not-obvious decisions in `docs/ARCHITECTURE.md` (§13 plan, §14 decisions), then `git log --oneline -15` and `git status` — if either shows activity you don't recognize, another session may be active on this repo (check with a multi-session tool if you have one); investigate and reconcile before building on top of it, don't guess or silently overwrite. This step exists because skipping it once caused two sessions to build incompatible designs for the same subsystem (D9 in §14 has the summary).
+1. **Explore.** Read the relevant section of `docs/ARCHITECTURE.md` and the nested `CLAUDE.md` of the area you touch. For anything about Claude Code behaviour, verify it at https://code.claude.com/docs (plugins-reference, hooks, plugin-evals, skills, sub-agents) and record the link and date next to the fact where it's cited.
 2. **Plan.** State the files to change, the tests to add, and the check command that proves it. Keep the change inside one phase of the plan (§13).
 3. **Implement.** Write the test first when the behaviour is deterministic.
 4. **Verify.** Run the phase's check commands (§13) plus the fast checks above. Paste the command output summary in your final message. Never claim "done" without it.

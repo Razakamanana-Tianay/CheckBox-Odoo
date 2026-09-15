@@ -1,10 +1,10 @@
 """Budget checks from the repo's CLAUDE.md non-negotiable #5.
 
-The 10,000-char hook output cap is deliberately included even though
-docs/notes/platform-facts.md §1.4 downgraded it to TODO(verify) -- keeping
-it costs nothing (every other budget here sits well under it) and protects
-against silent truncation if the cap turns out to be real. See that note
-for why this is an intentional asymmetry, not an oversight.
+The 10,000-char hook output cap is deliberately included even though its
+existence could only be confirmed as TODO(verify) -- keeping it costs
+nothing (every other budget here sits well under it) and protects against
+silent truncation if the cap turns out to be real. That asymmetry is
+intentional, not an oversight.
 """
 
 from __future__ import annotations

@@ -1,9 +1,9 @@
 """Shared hook plumbing: stdin reading, the fail-open wrapper, output emitters.
 
-Every fact this module encodes about hook I/O is cited in
-docs/notes/platform-facts.md §1 -- change the shape here only after updating
-that note, per plugins/checkbox/CLAUDE.md's "Before changing any output
-shape" rule.
+Every fact this module encodes about hook I/O was verified against the
+official hooks reference (code.claude.com/docs/en/hooks) -- change the
+shape here only after re-verifying there, per
+plugins/checkbox/CLAUDE.md's "Before changing any output shape" rule.
 """
 
 from __future__ import annotations
@@ -32,24 +32,24 @@ def read_stdin_json() -> dict[str, Any]:
 
 def emit_context(text: str) -> None:
     """SessionStart / UserPromptSubmit: plain stdout is added as context
-    directly, no JSON wrapper (platform-facts.md §1.6, confirmed against
-    Ponytail's shipped ponytail-runtime.js: `process.stdout.write(context)`
-    for these two events specifically)."""
+    directly, no JSON wrapper (verified against code.claude.com/docs/en/hooks,
+    and corroborated by Ponytail's shipped ponytail-runtime.js:
+    `process.stdout.write(context)` for these two events specifically)."""
     if text:
         sys.stdout.write(text)
 
 
 def emit_subagent_context(event: str, text: str) -> None:
     """SubagentStart: the hookSpecificOutput JSON form is required, or the
-    context is silently dropped (platform-facts.md §1.7)."""
+    context is silently dropped (verified against the hooks reference)."""
     emit_hook_context(event, text)
 
 
 def emit_hook_context(event: str, text: str) -> None:
     """Generic hookSpecificOutput context injection for events whose plain
     stdout is *not* added to the transcript (SubagentStart, PreToolUse,
-    PostToolUse -- platform-facts.md §1.6 lists the plain-stdout events and
-    these aren't among them)."""
+    PostToolUse -- verified against the hooks reference: these events are
+    not among the plain-stdout ones)."""
     if not text:
         return
     payload = {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}

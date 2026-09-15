@@ -3,9 +3,9 @@
 §8.2 row: Stop. Levels: full, strict. When addon files were edited in this
 session and no approved card covers a touched addon, block stopping once
 with the reason "decision card missing". Exiting 2 blocks the turn end
-(platform-facts.md §1.8); the block-once behaviour is built on the session
-state's stop-block counter because no stop-active flag exists in the
-platform.
+(verified against the hooks reference); the block-once behaviour is built
+on the session state's stop-block counter because no stop-active flag
+exists in the platform.
 
 The reason goes to **stderr**, not stdout: verified against
 code.claude.com/docs/en/hooks, 2026-09-15 -- "The blocking message is the
@@ -42,7 +42,7 @@ def _run(payload: dict[str, Any]) -> int | None:
     if not uncovered:
         return 0
     if int(state.get("stop_block_count", 0)) > 0:
-        return 0  # already blocked once this session; don't loop (platform-facts §1.8)
+        return 0  # already blocked once this session; don't loop
     session_mod.increment_stop_block_count(root, session_id)
     sys.stderr.write(
         "checkbox: stopping blocked once -- addon files were edited this session "

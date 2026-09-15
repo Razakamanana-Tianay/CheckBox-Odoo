@@ -32,7 +32,7 @@ def test_session_start_emits_full_ladder_for_known_profile(capsys):
     out = capsys.readouterr().out
     assert "Odoo change policy (checkbox)" in out
     assert "18.0" in out
-    assert out.startswith("#")  # raw stdout, no JSON wrapper (platform-facts.md §1.6)
+    assert out.startswith("#")  # raw stdout, no JSON wrapper (plain-stdout event)
 
 
 def test_session_start_notes_missing_profile(capsys):

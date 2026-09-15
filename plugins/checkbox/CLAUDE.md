@@ -38,13 +38,13 @@ evals/                       ← claude plugin eval suite
   | `SessionStart` | `startup\|resume\|clear\|compact` | `session-start` |
   | `UserPromptSubmit` | — | `prompt` |
   | `SubagentStart` | — | `subagent-start` |
-  | `PreToolUse` | file-edit tools (see platform-facts) | `pre-edit` |
+  | `PreToolUse` | file-edit tools | `pre-edit` |
   | `PreToolUse` | `Bash` | `pre-bash` |
   | `PostToolUse` | file-edit tools | `post-edit` |
   | `Stop` | — | `stop` |
 
 - **After editing:** `/reload-plugins` in the running session, then check `/hooks` shows the entries as "Plugin Hooks".
-- **Before changing any output shape:** re-read the event's section of the hooks reference, then update `docs/notes/platform-facts.md`.
+- **Before changing any output shape:** re-read the event's section of the hooks reference at code.claude.com/docs/en/hooks, and cite it in the hook's docstring.
 
 ## .mcp.json / checkbox-mcp (P7, optional)
 

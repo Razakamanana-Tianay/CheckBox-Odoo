@@ -4,8 +4,9 @@ description: >
   Hosting-constraint trap: Odoo Online forbids custom Python modules
   entirely (§4.2's hosting table); the profile's own `hosting: online`
   should make the ladder stop at rung 4 (nocode/Studio), not attempt any
-  .py file. Confirmed against §4.2 and platform-facts.md §15 Q7; the exact
-  Studio capability list stays TODO(verify) per that note -- this case
+  .py file. Confirmed against §4.2's hosting table and §15 Q7's resolution
+  (Online forbids custom Python modules entirely); the exact
+  Studio capability list stays TODO(verify), so this case
   only grades the hosting boundary, not Studio specifics. Prompt names a
   concrete field (delivery instructions) so a well-behaved agent doesn't
   need to ask a clarifying question before finalizing the card -- an

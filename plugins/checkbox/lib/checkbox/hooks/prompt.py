@@ -3,7 +3,7 @@
 Fires only in full/strict (docs/ARCHITECTURE.md §8.2's Levels column for
 this row is "full, strict" -- lite already gets the compact ladder once, at
 SessionStart; repeating it every turn would double the cost with no
-documented benefit). Kept per docs/notes/platform-facts.md's Ponytail-
+documented benefit). Kept per the Ponytail-
 derived note: the per-turn reminder is a hypothesis pending P5 eval
 evidence, not proven necessary -- don't remove it without that evidence,
 and don't expand its scope either.

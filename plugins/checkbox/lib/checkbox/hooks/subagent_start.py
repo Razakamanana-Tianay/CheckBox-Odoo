@@ -1,10 +1,10 @@
 """SubagentStart hook: inject the compact ladder into subagents. `checkbox hook subagent-start`.
 
 SessionStart context is parent-thread only and never reaches subagents
-(docs/notes/platform-facts.md §1.7, corroborated by Ponytail's own shipped
-comment to the same effect). Fires for every subagent by default -- scope
-it via hooks.json's own `matcher` field (a regex on agent_type, e.g.
-"Explore") rather than an env-var workaround. platform-facts.md §1.7
+(verified against the hooks reference, corroborated by Ponytail's own
+shipped comment to the same effect). Fires for every subagent by default --
+scope it via hooks.json's own `matcher` field (a regex on agent_type, e.g.
+"Explore") rather than an env-var workaround. The hooks reference
 explains why the CHECKBOX_SUBAGENT_MATCHER env var this project's own
 architecture doc originally proposed is unnecessary: the platform's native
 matcher already does the same job declaratively.

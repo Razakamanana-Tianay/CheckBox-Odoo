@@ -19,8 +19,11 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
-# scratch Odoo source clones (see docs/notes/ for how these are fetched)
+# scratch Odoo source clones
 .odoo-src/
+
+# local notes that are kept out of the public repo (working notes, drafts)
+/docs/notes/
 
 # local Claude Code session/harness state, not project data
 .claude/
