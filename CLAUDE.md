@@ -49,7 +49,7 @@ plugins/checkbox/               ← the plugin (see its CLAUDE.md)
   skills/ agents/ hooks/ bin/
   evals/                        ← claude plugin eval suite (see its CLAUDE.md)
 adapters/                       ← generated files for other agents (see its CLAUDE.md)
-scripts/                        ← build_adapters.py, check_rule_copies.py, build_eval_fixtures.py
+scripts/                        ← build_adapters.py, check_rule_copies.py
 tests/                          ← pytest; fixtures/stubs are tiny fake Odoo trees
 ```
 
@@ -89,8 +89,12 @@ claude --plugin-dir plugins/checkbox
 claude plugin details checkbox
 
 # evals: cheap iteration, then full run (real model calls, costs money)
-claude plugin eval plugins/checkbox --case 'po-*' --runs 1 --ablation none --scaffold
-claude plugin eval plugins/checkbox --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
+# Bash is required, not optional: every skill invokes the checkbox CLI
+# through it (bin/ is on PATH automatically while the plugin is enabled --
+# verified 2026-09-15). Bash needs the sandbox backend (bwrap + socat on
+# Linux); without it Claude Code refuses each Bash-granted run.
+claude plugin eval plugins/checkbox --case 'po-*' --runs 1 --ablation none --scaffold --allow-tools Write Edit Bash
+claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --no-publish --max-cost-usd 15
 ```
 
 `$ODOO17_SRC`, `$ODOO18_SRC` and `$ODOO19_SRC` point to local checkouts of Odoo Community on those branches. `$ODOO18_EE_SRC` points to Enterprise, if available. Tests that need them are marked `@pytest.mark.odoo_src` and skip when the variable is unset.

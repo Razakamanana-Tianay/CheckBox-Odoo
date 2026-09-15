@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: quality-check-ce
+description: >
+  Red-recall case: 18.0 CE has no Quality app at all (confirmed via the
+  GitHub API tree listing of the public odoo/odoo repo, 2026-09-15 --
+  docs/ARCHITECTURE.md §11.3). No standard/config/module path exists, so
+  the agent must fall to rung 6 (code), overriding picking validation. The
+  classifier is deterministic and tier: red is not negotiable here --
+  §11.2 requires 100% red recall.
+expected_outcome: "verdict: code, tier: red, extension point names picking validation + super()"
+context:
+  scaffold_script: scaffold.sh

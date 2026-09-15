@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: po-approval-threshold
+description: >
+  Rung 2/3 trap: po_order_approval + po_double_validation_amount already
+  cover this on 18.0 CE (docs/ARCHITECTURE.md §11.3, verified against real
+  source). A correctly-ladder-walking agent should draft a config verdict
+  and write zero addon code.
+expected_outcome: "verdict: config, zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

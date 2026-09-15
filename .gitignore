@@ -10,8 +10,12 @@ dist/
 .checkbox/local.json
 .checkbox/.session/
 
-# eval / test output
-evals/results/
+# eval / test output. Leading **/ is required: evals/ lives under
+# plugins/checkbox/, and a gitignore pattern containing a non-trailing
+# slash is anchored to the .gitignore's own directory, not matched at any
+# depth -- "evals/results/" alone silently matched nothing (caught while
+# testing P5's first eval run, 2026-09-15).
+**/evals/results/
 .pytest_cache/
 .ruff_cache/
 
