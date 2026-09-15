@@ -1,0 +1,95 @@
+"""End-to-end CLI smoke tests, driving the real bin/checkbox entry point."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BIN = REPO_ROOT / "plugins" / "checkbox" / "bin" / "checkbox"
+PROJECT_18CE = REPO_ROOT / "tests" / "fixtures" / "projects" / "18-ce"
+STUB_18CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo18-ce"
+
+
+def _run(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [str(BIN), *args], capture_output=True, text=True, timeout=10, cwd=REPO_ROOT
+    )
+
+
+def test_doctor_json():
+    result = _run("doctor", "--json")
+    assert result.returncode == 0
+    assert '"python_version_ok": true' in result.stdout
+
+
+def test_ladder_render_with_known_profile():
+    result = _run("ladder", "render", "--level", "full", "--root", str(PROJECT_18CE))
+    assert result.returncode == 0
+    assert "Odoo change policy (checkbox)" in result.stdout
+
+
+def test_ladder_render_without_profile_fails_cleanly():
+    result = _run("ladder", "render", "--root", str(STUB_18CE))
+    assert result.returncode == 1
+    assert "/checkbox:init" in result.stderr
+
+
+def test_usage_error_exits_2():
+    result = _run("not-a-real-command")
+    assert result.returncode == 2
+
+
+def test_card_next_id_on_project_with_no_decisions_yet():
+    result = _run("card", "next-id", "--root", str(PROJECT_18CE), "--json")
+    assert result.returncode == 0
+    assert '"next_id": "0001"' in result.stdout
+
+
+def test_card_validate_accepts_a_well_formed_card(tmp_path):
+    card_file = tmp_path / "0001-test.md"
+    card_file.write_text(
+        "# 0001 - test\n\n"
+        "```checkbox-card\n"
+        "id: 0001\n"
+        "need: test need\n"
+        "profile: 18.0 / community / on-premise\n"
+        "verdict: config\n"
+        "evidence: docs | some page\n"
+        "steps: do the thing\n"
+        "addons: -\n"
+        "extension_point: -\n"
+        "tier: -\n"
+        "upgrade_cost: none\n"
+        "status: proposed\n"
+        "```\n"
+    )
+    result = _run("card", "validate", str(card_file), "--root", str(PROJECT_18CE), "--json")
+    assert result.returncode == 0
+    assert '"valid": true' in result.stdout
+
+
+def test_card_validate_rejects_a_broken_card(tmp_path):
+    card_file = tmp_path / "0002-bad.md"
+    card_file.write_text("# 0002 - bad\n\nno fenced block here at all.\n")
+    result = _run("card", "validate", str(card_file), "--root", str(PROJECT_18CE))
+    assert result.returncode == 1
+    assert "error" in result.stderr
+
+
+def test_mode_show_defaults_to_full():
+    result = _run("mode", "show", "--root", str(PROJECT_18CE), "--json")
+    assert result.returncode == 0
+    assert '"mode": "full"' in result.stdout
+
+
+def test_mode_set_then_show_roundtrip(tmp_path):
+    set_result = _run("mode", "set", "strict", "--root", str(tmp_path), "--json")
+    assert set_result.returncode == 0
+    show_result = _run("mode", "show", "--root", str(tmp_path), "--json")
+    assert '"mode": "strict"' in show_result.stdout
+
+
+def test_mode_set_rejects_bad_level():
+    result = _run("mode", "set", "bogus", "--root", str(PROJECT_18CE))
+    assert result.returncode == 2  # argparse choices rejects it before cmd_mode_set runs

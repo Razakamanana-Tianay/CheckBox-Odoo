@@ -74,8 +74,11 @@ plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.p
 plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC"
 
 # hook dry-runs (stdin payloads in tests/fixtures/hooks/)
-plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json | python3 -m json.tool
-plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
+# SessionStart/UserPromptSubmit print plain text (platform-facts.md §1.6), not JSON:
+plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json
+# SubagentStart and PreToolUse (P4) use the hookSpecificOutput JSON form:
+plugins/checkbox/bin/checkbox hook subagent-start < tests/fixtures/hooks/subagent_start.json | python3 -m json.tool
+plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool  # P4, not built yet
 
 # run the plugin interactively (development)
 claude --plugin-dir plugins/checkbox

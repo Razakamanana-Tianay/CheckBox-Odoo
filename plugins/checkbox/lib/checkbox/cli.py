@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from checkbox import card as card_mod
+from checkbox import ladder as ladder_mod
+from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
 from checkbox.paths import find_project_root
 
@@ -81,6 +84,70 @@ def cmd_profile_write(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ladder_render(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    try:
+        prof = profile_mod.load(root)
+    except FileNotFoundError:
+        print(
+            "no profile yet at .checkbox/profile.json -- run /checkbox:init first", file=sys.stderr
+        )
+        return 1
+    print(ladder_mod.render(args.level, prof))
+    return 0
+
+
+def cmd_card_next_id(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    new_id = card_mod.next_id(root / ".checkbox" / "decisions")
+    _print({"next_id": new_id}, args.json)
+    return 0
+
+
+def cmd_card_validate(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    path = Path(args.file)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: cannot read {path}: {exc}", file=sys.stderr)
+        return 2
+    try:
+        card = card_mod.parse(text)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    profile = None
+    try:
+        profile = profile_mod.load(root)
+    except FileNotFoundError:
+        pass  # no profile -> the addons-vs-custom_addons check is skipped; the rest still runs
+    errors = card_mod.validate(card, profile=profile, raw_text=text)
+    if errors:
+        for error in errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    _print({"valid": True, "id": card.get("id"), "verdict": card.get("verdict")}, args.json)
+    return 0
+
+
+def cmd_mode_show(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    _print({"mode": mode_mod.resolve(root)}, args.json)
+    return 0
+
+
+def cmd_mode_set(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    try:
+        path = mode_mod.write_local_mode(root, args.level)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    _print({"written": str(path), "mode": args.level}, args.json)
+    return 0
+
+
 _HOOK_MAIN = {
     "session-start": "checkbox.hooks.session_start",
     "prompt": "checkbox.hooks.prompt",
@@ -130,6 +197,41 @@ def build_parser() -> argparse.ArgumentParser:
     hook = sub.add_parser("hook", help="run a hook entry point (stdin: the hook's JSON payload)")
     hook.add_argument("event", choices=sorted(_HOOK_MAIN))
     hook.set_defaults(func=cmd_hook)
+
+    ladder_parser = sub.add_parser("ladder", help="render the ladder text")
+    ladder_sub = ladder_parser.add_subparsers(dest="ladder_command", required=True)
+    render = ladder_sub.add_parser("render", help="render the ladder for the saved profile")
+    render.add_argument("--level", choices=("lite", "full", "strict"), default="full")
+    render.add_argument("--root", default=None)
+    render.set_defaults(func=cmd_ladder_render)
+
+    card_parser = sub.add_parser("card", help="decision cards")
+    card_sub = card_parser.add_subparsers(dest="card_command", required=True)
+
+    next_id = card_sub.add_parser("next-id", help="print the next .checkbox/decisions/ card id")
+    next_id.add_argument("--root", default=None)
+    next_id.add_argument("--json", action="store_true")
+    next_id.set_defaults(func=cmd_card_next_id)
+
+    card_validate = card_sub.add_parser("validate", help="validate a card file")
+    card_validate.add_argument("file")
+    card_validate.add_argument("--root", default=None)
+    card_validate.add_argument("--json", action="store_true")
+    card_validate.set_defaults(func=cmd_card_validate)
+
+    mode_parser = sub.add_parser("mode", help="policy level (off/lite/full/strict)")
+    mode_sub = mode_parser.add_subparsers(dest="mode_command", required=True)
+
+    mode_show = mode_sub.add_parser("show", help="print the resolved mode")
+    mode_show.add_argument("--root", default=None)
+    mode_show.add_argument("--json", action="store_true")
+    mode_show.set_defaults(func=cmd_mode_show)
+
+    mode_set = mode_sub.add_parser("set", help="write .checkbox/local.json's mode override")
+    mode_set.add_argument("level", choices=("off", "lite", "full", "strict"))
+    mode_set.add_argument("--root", default=None)
+    mode_set.add_argument("--json", action="store_true")
+    mode_set.set_defaults(func=cmd_mode_set)
 
     return parser
 

@@ -69,15 +69,27 @@ evals/                       ← claude plugin eval suite
   - Prompt: a fixed checklist covering balanced moves, rounding and currency, multi-company, valuation layers, reversals/credit notes, sequences/gaps, access and `sudo`, upgrade exposure. Output is a Markdown report the `review` skill appends to the card.
 - **Allowed frontmatter:** plugin agents cannot declare `hooks`, `mcpServers` or `permissionMode`; don't try.
 
-## Manual smoke test (after P2)
+## Manual smoke test
 
 ```bash
 mkdir -p /tmp/fg-smoke && cp -r ../../tests/fixtures/projects/18-ce/. /tmp/fg-smoke/
 cd /tmp/fg-smoke && claude --plugin-dir <repo>/plugins/checkbox
 ```
 
-Then try these prompts:
+What's testable after P2, honestly:
 
-1. `/checkbox:init` → the profile is confirmed.
-2. "Write a module so purchase orders above 5000 need manager approval" → the answer is a card with `verdict: config`, and no file is written under `addons/`.
-3. `/checkbox:mode strict`, then "add a field on sale orders" without a card → the edit is denied with a reason that names `/checkbox:card`.
+1. `/checkbox:init` → the profile is confirmed. (P2: works)
+2. "Write a module so purchase orders above 5000 need manager approval" → the
+   ladder and card skills should still walk the rungs and draft a card, but
+   without P3's evidence search or the `standard-scout` agent, evidence for
+   a `standard`/`config` verdict is `unverified` -- and `card validate`
+   correctly *refuses* an `unverified`-only card for those verdicts (§5.1).
+   Expect the agent to say evidence is unverified and stop there, not to
+   produce a clean `verdict: config` card. That only becomes the full,
+   documented outcome once P3 lands.
+3. `/checkbox:mode strict`, then "add a field on sale orders" without a
+   card → **not testable until P4**: there is no PreToolUse guard yet, so
+   nothing will deny the edit. Confirm instead that `/checkbox:mode strict`
+   itself round-trips (`checkbox mode show` reflects it) and that the
+   ladder skill still recommends drafting a card first, on discipline
+   alone, not enforcement.
