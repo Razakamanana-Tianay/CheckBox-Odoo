@@ -24,13 +24,13 @@ knowledge/
   store.py         sqlite helpers; has_fts5(); search(); LIKE fallback — shipped, P3
   source.py        build feature index from addons paths (manifests, settings fields/views) — shipped, P3.
                    _description/menu-name indexing deferred; not needed by any seed case yet
-  docs.py          sparse shallow clone of odoo/documentation@version; section splitter — NOT built (P3 follow-up)
-  oca.py           curated repo list; shallow clones; manifest fields — NOT built (P3 follow-up)
+  docs.py          sparse shallow clone of odoo/documentation@version; section splitter — NOT built (deferred at P3, stayed deferred at P7, ARCHITECTURE §14 D10)
+  oca.py           curated repo list; shallow clones; manifest fields — NOT built (P7 named this in scope but it was cut on review, ARCHITECTURE §14 D10 -- network+disk cost, no consumer yet)
   search.py        unified search → Evidence list — shipped, P3, `source` kind only until docs.py/oca.py land
 hooks/
   common.py        read stdin JSON, safe_main() wrapper (fail-open), emit() helpers
   session_start.py prompt.py subagent_start.py pre_edit.py pre_bash.py post_edit.py stop.py
-mcp_server.py      (P7) optional; imports the mcp SDK lazily; exposes search/classify/card_validate
+mcp_server.py      (P7, shipped) optional; imports the mcp SDK lazily; exposes search/classify/card_validate
 ```
 
 ## Contracts

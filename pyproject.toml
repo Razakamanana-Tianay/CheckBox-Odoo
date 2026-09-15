@@ -7,6 +7,12 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# checkbox-mcp (P7) is the one module under lib/checkbox allowed a third-party
+# import, and only lazily (see mcp_server.py's docstring). This extra is for
+# running tests/test_mcp_server.py and for the $CLAUDE_PLUGIN_DATA venv the
+# plugin's .mcp.json points at -- never installed into the core dev env by
+# `pip install -e ".[dev]"` alone.
+mcp = ["mcp>=2.0,<3"]
 
 [build-system]
 requires = ["setuptools>=68"]

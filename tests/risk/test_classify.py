@@ -103,11 +103,14 @@ def test_non_risk_file_is_green(tmp_path):
 
 
 def test_version_without_rules_falls_back_to_latest_available():
-    # 19.0 has no overlay yet (never verified); load() must fail open onto
-    # the newest available overlay and say so, not raise.
-    with pytest.warns(RuntimeWarning, match="19.0"):
-        merged = rules_mod.load("19.0")
-    assert merged["version"] == "18.0"
+    # 20.0 has no overlay yet (not released when this was written -- verified
+    # via `git ls-remote --heads github.com/odoo/odoo.git`, 2026-09-15: only
+    # up to 19.0 exists). 19.0 itself got a real, verified overlay in P7, so
+    # this test moved to 20.0 to keep covering the fail-open path: load()
+    # must fail open onto the newest available overlay and say so, not raise.
+    with pytest.warns(RuntimeWarning, match="20.0"):
+        merged = rules_mod.load("20.0")
+    assert merged["version"] == "19.0"
 
 
 # -- P5 seed-case ground truth (docs/ARCHITECTURE.md §11.3) ------------------

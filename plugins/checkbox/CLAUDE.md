@@ -12,6 +12,7 @@ rules/                       ← ladder.md, ladder.compact.md, hosting.md, risk/
 skills/<name>/SKILL.md       ← ladder, init, card, review, mode, help
 agents/<name>.md             ← standard-scout, ledger-reviewer
 hooks/hooks.json
+.mcp.json                    ← (P7, optional) registers checkbox-mcp; see below
 evals/                       ← claude plugin eval suite
 ```
 
@@ -44,6 +45,13 @@ evals/                       ← claude plugin eval suite
 
 - **After editing:** `/reload-plugins` in the running session, then check `/hooks` shows the entries as "Plugin Hooks".
 - **Before changing any output shape:** re-read the event's section of the hooks reference, then update `docs/notes/platform-facts.md`.
+
+## .mcp.json / checkbox-mcp (P7, optional)
+
+- Gives non-Claude hosts `search`, `classify` and `card_validate` as MCP tools -- Claude Code itself already has these via the guard and skills, so this server exists for hosts without them (docs/ARCHITECTURE.md §9).
+- `command` points at `${CLAUDE_PLUGIN_DATA}/venv/bin/python3`, not the plugin's own `bin/checkbox` launcher, because `mcp_server.py` is the one file allowed a third-party import (the `mcp` SDK -- CLAUDE.md non-negotiable #1) and that must not leak into the stdlib-only core's interpreter.
+- **Not installed by default.** Per plugin registration behavior (verified against py.sdk.modelcontextprotocol.io and code.claude.com/docs, 2026-09-15: plugin `mcpServers` start automatically when the plugin is enabled), a fresh install with no venv yet will show `checkbox` as a disconnected MCP server in `/mcp` until someone runs the install commands in `mcp_server.py`'s module docstring. This degrades gracefully -- hooks, skills and the guard don't depend on this server at all -- but it means P7 is opt-in work, not a silent zero-config feature. Revisit only if a real non-Claude-host user asks for a smoother first run.
+- Verify after any change: `python3 -m venv /tmp/checkbox-mcp-venv && /tmp/checkbox-mcp-venv/bin/pip install -e ".[mcp]" && /tmp/checkbox-mcp-venv/bin/mcp dev plugins/checkbox/lib/checkbox/mcp_server.py` (MCP Inspector smoke test -- confirms all three tools list and `search`/`classify` return real data against a fixture project).
 
 ## Skills
 
