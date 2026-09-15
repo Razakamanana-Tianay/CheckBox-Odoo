@@ -9,7 +9,7 @@ evals/
 ├── <case>/
 │   ├── prompt.md          # frontmatter: max_turns, timeout_seconds, allowed_tools, tags; body = user prompt
 │   ├── case.yaml          # schema_version "1.1", name, context.scaffold_script, context.add_dirs
-│   ├── scaffold.sh        # writes .fitgate/profile.json + Odoo slice into the empty workspace
+│   ├── scaffold.sh        # writes .checkbox/profile.json + Odoo slice into the empty workspace
 │   ├── fixture/           # per-case copy produced by scripts/build_eval_fixtures.py
 │   └── graders/*.md       # one grader per file
 └── results/               # gitignored
@@ -21,7 +21,7 @@ evals/
 
 ## Writing a case
 
-1. **Prompt.** Phrase it the way a developer would, usually asking for code. Trap cases *should* tempt the agent to write a module. Never mention fitgate, ladders or cards in the prompt.
+1. **Prompt.** Phrase it the way a developer would, usually asking for code. Trap cases *should* tempt the agent to write a module. Never mention checkbox, ladders or cards in the prompt.
 2. **Profile.** The profile in `scaffold.sh` fixes version, edition and hosting. Name the case after the need and suffix the variant (`quality-check-ce`, `quality-check-ee`).
 3. **Fixture.** The Odoo slice contains only the files evidence search needs (manifests, settings models and views of the relevant modules). Build it with:
 
@@ -42,13 +42,13 @@ evals/
 
 ```bash
 # iterate on one case, one arm, one run
-claude plugin eval plugins/fitgate --case '<case>' --runs 1 --ablation none --scaffold --allow-tools Write Edit
+claude plugin eval plugins/checkbox --case '<case>' --runs 1 --ablation none --scaffold --allow-tools Write Edit
 
 # full suite with baseline (costs real money; cap it)
-claude plugin eval plugins/fitgate --scaffold --allow-tools Write Edit --no-publish --max-cost-usd 15 --json docs/benchmarks/latest.json
+claude plugin eval plugins/checkbox --scaffold --allow-tools Write Edit --no-publish --max-cost-usd 15 --json docs/benchmarks/latest.json
 
 # CI gate (pin models so scores are comparable)
-claude plugin eval plugins/fitgate --trust-plugin --scaffold --allow-tools Write Edit \
+claude plugin eval plugins/checkbox --trust-plugin --scaffold --allow-tools Write Edit \
   --threshold 0.8 --model <pinned-model> --judge-model <pinned-judge> --no-publish --max-cost-usd 20 --json results.json
 ```
 

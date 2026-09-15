@@ -1,22 +1,22 @@
-# fitgate: the fit-gap gate for Odoo coding agents
+# checkbox: the fit-gap gate for Odoo coding agents
 
-> Working name. Plugin id `fitgate`, commands `/fitgate:*`.
-> Status: design v0.1 (2026-09-15). Owner: Tianay Razakamanana.
+> Repo and marketplace `checkbox-odoo`, plugin id `checkbox`, commands `/checkbox:*`.
+> Status: design v0.1 (2026-09-15), renamed from fitgate in P1. Owner: Tianay Razakamanana.
 
 ## 0. Pitch
 
 Coding agents write Odoo fluently. That is the problem: a custom module now costs 40 seconds to build and years to own.
 
-fitgate puts a functional consultant's reflex inside the agent. Before any line of code, the agent must:
+checkbox puts a functional consultant's reflex inside the agent. Before any line of code, the agent must:
 
 1. walk an **Odoo decision ladder**: standard, then configuration, then no-code, then an existing module, then code;
 2. ground each rung in **evidence from the project's exact version, edition and hosting**;
 3. write a **decision card**;
 4. classify the change by **blast radius**: 🟢 let it run, 🟠 review, 🔴 read every line.
 
-**Relationship to Ponytail.** fitgate borrows Ponytail's delivery pattern: a hook-injected ruleset, intensity levels, adapters for many agents, and a with/without benchmark. It does not reuse Ponytail's text. The two answer different questions and compose:
+**Relationship to Ponytail.** checkbox borrows Ponytail's delivery pattern: a hook-injected ruleset, intensity levels, adapters for many agents, and a with/without benchmark. It does not reuse Ponytail's text. The two answer different questions and compose:
 
-- **fitgate** decides *whether* to write code, and *where* to plug it in.
+- **checkbox** decides *whether* to write code, and *where* to plug it in.
 - **Ponytail** decides *how little* code to write once the answer is "code".
 
 Install both.
@@ -34,8 +34,8 @@ Install both.
 
 ### Non-goals
 
-- Replacing the functional consultant. fitgate forces the questions and surfaces options; the business decision stays human.
-- Being a general Odoo coding pack. Coding patterns are already well covered by existing skill packs; use one alongside fitgate.
+- Replacing the functional consultant. checkbox forces the questions and surfaces options; the business decision stays human.
+- Being a general Odoo coding pack. Coding patterns are already well covered by existing skill packs; use one alongside checkbox.
 - Operating on live databases. Live evidence is an optional later feature (P7), read-only.
 - Security enforcement. The guard is a speed bump for agents, not a sandbox (§8.6).
 
@@ -47,7 +47,7 @@ Install both.
 4. **Stdlib-only core.** Odoo developers always have Python, so the core needs no pip install to run hooks.
 5. **Factual injection.** Hook context is phrased as project policy and facts, not as imperative "system" text. Claude Code documents that imperative out-of-band text can trigger prompt-injection defenses.
 6. **The card is the contract.** It is small, human-readable, machine-parseable, and committed next to the code it justifies.
-7. **Eat our own dog food.** The fitgate repository itself follows YAGNI: no feature ships without an eval case or a unit test that needs it.
+7. **Eat our own dog food.** The checkbox repository itself follows YAGNI: no feature ships without an eval case or a unit test that needs it.
 
 ## 3. System overview
 
@@ -56,13 +56,13 @@ flowchart LR
   U[Developer prompt] --> H1[UserPromptSubmit hook<br/>compact ladder]
   S[SessionStart hook<br/>ladder + profile] --> A
   H1 --> A[Agent]
-  A -->|/fitgate:init| P[(profile.json)]
+  A -->|/checkbox:init| P[(profile.json)]
   A -->|needs evidence| SC[standard-scout subagent]
-  SC --> K[fitgate search]
+  SC --> K[checkbox search]
   K --> I1[(source feature index)]
   K --> I2[(docs index)]
   K --> I3[(OCA index)]
-  A --> C[Decision card<br/>.fitgate/decisions/]
+  A --> C[Decision card<br/>.checkbox/decisions/]
   A -->|Write/Edit addon file| G{PreToolUse guard}
   G -->|strict + no approved card| X[deny + reason]
   G -->|ok| W[file written]
@@ -71,13 +71,13 @@ flowchart LR
   A --> ST{Stop hook}
   ST -->|edits without card| A
   R -->|red| LR[ledger-reviewer subagent]
-  HUM[Human] -->|fitgate approve| AP[(approvals.json)]
+  HUM[Human] -->|checkbox approve| AP[(approvals.json)]
 ```
 
 | Component | Kind | Responsibility |
 |---|---|---|
-| `lib/fitgate` | Python package (stdlib) | Core logic: profile, ladder rendering, cards, risk, knowledge, hooks, CLI |
-| `bin/fitgate` | Executable | CLI entry point. Plugin `bin/` is added to the Bash tool's PATH |
+| `lib/checkbox` | Python package (stdlib) | Core logic: profile, ladder rendering, cards, risk, knowledge, hooks, CLI |
+| `bin/checkbox` | Executable | CLI entry point. Plugin `bin/` is added to the Bash tool's PATH |
 | `rules/` | Data + canonical text | Ladder text (single source of truth), hosting matrix, risk rules per version |
 | `skills/` | Claude Code skills | `ladder`, `init`, `card`, `review`, `mode`, `help` |
 | `agents/` | Subagents | `standard-scout` (read-only evidence finder), `ledger-reviewer` (red-tier review) |
@@ -135,12 +135,12 @@ Never allowed:
 
 ### 5.1 Format
 
-A card is a Markdown file with one fenced block of type `fitgate-card`. The block holds `key: value` lines with a fixed key set; the prose around it is free.
+A card is a Markdown file with one fenced block of type `checkbox-card`. The block holds `key: value` lines with a fixed key set; the prose around it is free.
 
 ````markdown
 # 0007 — PO approval above threshold
 
-```fitgate-card
+```checkbox-card
 id: 0007
 need: Purchase orders above 5,000 require manager approval before confirmation
 profile: 18.0 / community / on-premise
@@ -167,9 +167,9 @@ Context, rejected options, open questions (free text).
 
 ### 5.2 Lifecycle and storage
 
-- Cards live in `.fitgate/decisions/NNNN-slug.md` in the **Odoo project repository**, committed with the code. This answers the post's "code has git, your accounting does not": the decision itself now has a git trail.
+- Cards live in `.checkbox/decisions/NNNN-slug.md` in the **Odoo project repository**, committed with the code. This answers the post's "code has git, your accounting does not": the decision itself now has a git trail.
 - The agent may only create cards with `status: proposed`.
-- **Approval is a human act.** The human runs `fitgate approve 0007` in their own terminal. This writes `.fitgate/approvals.json` with the card id, a hash of the card block, the git user and a timestamp.
+- **Approval is a human act.** The human runs `checkbox approve 0007` in their own terminal. This writes `.checkbox/approvals.json` with the card id, a hash of the card block, the git user and a timestamp.
 - Editing an approved card invalidates its approval, because the hash changes.
 - A 🔴 card cannot be approved while any evidence is `unverified`, or without a `ledger-reviewer` report attached.
 
@@ -191,7 +191,7 @@ A red change requires three things:
 
 ### 6.2 Classifier
 
-- **Input:** a file path (PostToolUse) or a diff (`/fitgate:review`).
+- **Input:** a file path (PostToolUse) or a diff (`/checkbox:review`).
 - **Python files:** parsed with `ast`. The classifier detects:
   - classes with `_inherit`/`_name` in the risk model set;
   - methods defined on those classes whose names appear in the method list for that model and version;
@@ -222,7 +222,7 @@ A red change requires three things:
 }
 ```
 
-**Verification rule.** Every model and method entry is checked by `fitgate rules verify --version X --odoo-src PATH`. The command fails if the model or method is not defined in the referenced source file. No entry is merged without passing this check, which is what keeps model-memory hallucinations out of the risk data.
+**Verification rule.** Every model and method entry is checked by `checkbox rules verify --version X --odoo-src PATH`. The command fails if the model or method is not defined in the referenced source file. No entry is merged without passing this check, which is what keeps model-memory hallucinations out of the risk data.
 
 ## 7. Knowledge layer: evidence for "is it standard?"
 
@@ -240,9 +240,9 @@ A red change requires three things:
 ### 7.2 Storage and search
 
 - **Engine:** SQLite FTS5 when the Python build supports it, otherwise a `LIKE` fallback. The core checks this at runtime.
-- **Location:** `$DATA` is `FITGATE_DATA_DIR`, else `CLAUDE_PLUGIN_DATA`, else `~/.cache/fitgate`.
+- **Location:** `$DATA` is `CHECKBOX_DATA_DIR`, else `CLAUDE_PLUGIN_DATA`, else `~/.cache/checkbox`.
 - **Licensing:** indexes are built locally and never shipped. Odoo documentation is CC BY-SA; Odoo Community source is LGPL-3.
-- **CLI:** `fitgate search "<query>" [--kind source,docs,oca] [--profile PATH] [--json]`
+- **CLI:** `checkbox search "<query>" [--kind source,docs,oca] [--profile PATH] [--json]`
 - **Output:** `[{kind, ref, line, title, snippet, version, score}]`
 
 ### 7.3 Evidence rules
@@ -256,10 +256,10 @@ A red change requires three things:
 ### 8.1 Plugin layout
 
 ```
-plugins/fitgate/
+plugins/checkbox/
 ├── .claude-plugin/plugin.json
-├── bin/fitgate                 # python launcher → lib/fitgate
-├── lib/fitgate/                # stdlib-only core
+├── bin/checkbox                 # python launcher → lib/checkbox
+├── lib/checkbox/                # stdlib-only core
 ├── rules/                      # ladder.md (canonical), ladder.compact.md, hosting.json, risk/*.json
 ├── skills/{ladder,init,card,review,mode,help}/SKILL.md
 ├── agents/{standard-scout,ledger-reviewer}.md
@@ -267,20 +267,20 @@ plugins/fitgate/
 └── evals/                      # claude plugin eval suite
 ```
 
-- **Loading:** a `CLAUDE.md` at the plugin root is not loaded as context for plugin users. The nested `CLAUDE.md` files in this repo are for developers of fitgate only.
+- **Loading:** a `CLAUDE.md` at the plugin root is not loaded as context for plugin users. The nested `CLAUDE.md` files in this repo are for developers of checkbox only.
 - **Self-containment:** the plugin must be self-contained. Claude Code rejects component paths outside the plugin root, and does not copy outside files into the cache.
 
 ### 8.2 Hooks
 
-All hooks use **exec form**: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/fitgate", "hook", "<event>"]`.
+All hooks use **exec form**: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
 
 | Event | Matcher | Effect | Levels |
 |---|---|---|---|
-| `SessionStart` | `startup\|resume\|clear\|compact` | `additionalContext`: rendered ladder for the level + profile summary. If the profile is missing, a factual note that it is missing and that `/fitgate:init` creates it | lite, full, strict |
+| `SessionStart` | `startup\|resume\|clear\|compact` | `additionalContext`: rendered ladder for the level + profile summary. If the profile is missing, a factual note that it is missing and that `/checkbox:init` creates it | lite, full, strict |
 | `UserPromptSubmit` | none | Compact ladder reminder (≤ 400 chars) | full, strict |
-| `SubagentStart` | all, or `FITGATE_SUBAGENT_MATCHER` | Compact ladder into subagents | full, strict |
+| `SubagentStart` | all, or `CHECKBOX_SUBAGENT_MATCHER` | Compact ladder into subagents | full, strict |
 | `PreToolUse` | `Write\|Edit` (verify current file-tool names) | **strict:** deny edits under `custom_addons` when no approved card lists that addon. **full:** allow, and add a reminder if no card covers the addon | full, strict |
-| `PreToolUse` | `Bash` | Deny `fitgate approve`, writes to `.fitgate/approvals.json`, and SQL `UPDATE`/`DELETE` on ledger tables (heuristic) | full, strict |
+| `PreToolUse` | `Bash` | Deny `checkbox approve`, writes to `.checkbox/approvals.json`, and SQL `UPDATE`/`DELETE` on ledger tables (heuristic) | full, strict |
 | `PostToolUse` | `Write\|Edit` | Classify the file; `additionalContext` with tier and reasons; record the touched addon in session state | full, strict |
 | `Stop` | none | If addon files were edited this session and no card lists the addon, block **once** with the reason "decision card missing" | full, strict |
 
@@ -293,24 +293,24 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 - **SessionStart:** fires again on `resume`, `clear` and `compact`, which is why the ladder survives compaction.
 - **Stop:** a Stop hook can prevent stopping. Loop protection (the stop-active flag) must be confirmed in P0.
 
-**Session state.** Stored in `.fitgate/.session/<session_id>.json` (gitignored). It holds touched addons, the cards seen and the stop-block count.
+**Session state.** Stored in `.checkbox/.session/<session_id>.json` (gitignored). It holds touched addons, the cards seen and the stop-block count.
 
 ### 8.3 Skills
 
 | Skill | Invocation | Purpose |
 |---|---|---|
 | `ladder` | Model + user | Full ladder, card template, pointers to `extension-points.md` and `hosting.md` (loaded on demand). The description targets Odoo change requests |
-| `init` | User only (`disable-model-invocation: true`) | Detect the profile, confirm with the user one question at a time, write `.fitgate/profile.json`, build the source index, offer the docs/OCA index |
+| `init` | User only (`disable-model-invocation: true`) | Detect the profile, confirm with the user one question at a time, write `.checkbox/profile.json`, build the source index, offer the docs/OCA index |
 | `card` | Model + user | Delegate evidence gathering to `standard-scout`, then draft the card file |
 | `review` | Model + user | Tier report over `git diff`; red items are sent to `ledger-reviewer` |
-| `mode` | User only | `off` \| `lite` \| `full` \| `strict`. Writes `.fitgate/local.json` |
+| `mode` | User only | `off` \| `lite` \| `full` \| `strict`. Writes `.checkbox/local.json` |
 | `help` | User only | Command reference |
 
 ### 8.4 Subagents
 
 - **`standard-scout`**
   - **Configuration:** `disallowedTools: Write, Edit`, `model: sonnet`, `maxTurns: 15`.
-  - **Behaviour:** runs `fitgate search`, reads the matching source and settings views, and returns evidence items only.
+  - **Behaviour:** runs `checkbox search`, reads the matching source and settings views, and returns evidence items only.
   - **Limit:** no recommendations beyond the rung it proved.
 - **`ledger-reviewer`**
   - **Configuration:** `disallowedTools: Write, Edit`, `model: opus`.
@@ -319,8 +319,8 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 
 ### 8.5 Modes and budgets
 
-- **Mode resolution:** `FITGATE_MODE` env, then `.fitgate/local.json`, then `profile.json:mode`, then default `full`.
-- **Always-on cost:** ≤ 1,000 tokens, measured with `claude plugin details fitgate`.
+- **Mode resolution:** `CHECKBOX_MODE` env, then `.checkbox/local.json`, then `profile.json:mode`, then default `full`.
+- **Always-on cost:** ≤ 1,000 tokens, measured with `claude plugin details checkbox`.
 - **SessionStart context:** ≤ 6,000 characters.
 - **Per-prompt reminder:** ≤ 400 characters.
 - **Hook speed:** p95 ≤ 150 ms. Hooks never open indexes; they read only the profile, the session state and one file.
@@ -329,7 +329,7 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 
 - A PreToolUse `if`/matcher filter is best-effort, and a hook that times out does not block. Hard denials belong in Claude Code permissions.
 - An agent with Bash can write files without the Edit tool. The Stop and PostToolUse checks catch most of this, not all.
-- fitgate raises the cost of skipping the thinking; it does not make skipping impossible.
+- checkbox raises the cost of skipping the thinking; it does not make skipping impossible.
 
 ## 9. Other agents (adapters)
 
@@ -347,10 +347,10 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 
 ## 10. Data and privacy
 
-- **Network:** fitgate only clones public repositories (Odoo documentation, OCA).
-- **What stays local:** client code, cards and indexes. Nothing is uploaded by fitgate.
+- **Network:** checkbox only clones public repositories (Odoo documentation, OCA).
+- **What stays local:** client code, cards and indexes. Nothing is uploaded by checkbox.
 - **Card contents:** cards must not contain client data. The card parser rejects lines that look like emails, IBANs or VAT numbers; this is a best-effort lint.
-- **Client work:** for client repositories with residency constraints, keep `.fitgate/` in the client repo and `$DATA` on the client machine.
+- **Client work:** for client repositories with residency constraints, keep `.checkbox/` in the client repo and `$DATA` on the client machine.
 
 ## 11. Evaluation
 
@@ -358,7 +358,7 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 
 Use `claude plugin eval`. Each case runs with the plugin and without it (Δ), in an isolated session with an empty workspace.
 
-- **Setup:** fixtures come from `context.scaffold_script` (run only with `--scaffold`). It writes `.fitgate/profile.json` and a trimmed Odoo source slice.
+- **Setup:** fixtures come from `context.scaffold_script` (run only with `--scaffold`). It writes `.checkbox/profile.json` and a trimmed Odoo source slice.
 - **Graders:**
   - `regex` on the card fields in the last message;
   - `tool_used` with `min: 0`, `max: 0`, `arm: both` on `Write`/`Edit` for trap cases;
@@ -367,7 +367,7 @@ Use `claude plugin eval`. Each case runs with the plugin and without it (Δ), in
 Full run:
 
 ```
-claude plugin eval plugins/fitgate --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
+claude plugin eval plugins/checkbox --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
 ```
 
 ### 11.2 Metrics
@@ -402,7 +402,7 @@ Every expected answer must be confirmed against the real source for that version
 ## 12. Repository layout
 
 ```
-fitgate/
+checkbox-odoo/
 ├── CLAUDE.md
 ├── README.md
 ├── LICENSE                      # MIT
@@ -411,8 +411,8 @@ fitgate/
 ├── docs/
 │   ├── ARCHITECTURE.md          # this file
 │   ├── notes/platform-facts.md  # P0 output, re-verified each release
-│   └── adr/                     # decisions about fitgate itself
-├── plugins/fitgate/             # the plugin (see §8.1)
+│   └── adr/                     # decisions about checkbox itself
+├── plugins/checkbox/             # the plugin (see §8.1)
 ├── adapters/                    # generated, never hand-edited
 ├── scripts/                     # build_adapters.py, check_rule_copies.py, build_eval_fixtures.py
 └── tests/
@@ -429,13 +429,13 @@ Each phase follows explore → plan → implement → verify, and ends only when
 | Phase | Size | Deliverables | Check commands | Exit criteria |
 |---|---|---|---|---|
 | **P0 Explore** | S | `docs/notes/platform-facts.md`: verified hook I/O, the Stop loop flag, SubagentStart output, file-tool names, scaffold_script cwd/env, marketplace schema. Ponytail structure notes (hooks, skills, drift check, benchmarks) | `test -s docs/notes/platform-facts.md` | Every item in §15 answered, with a doc link |
-| **P1 Skeleton + profile** | S | Manifest, marketplace, `bin/fitgate`, `fitgate doctor`, `fitgate profile detect/show/write`, stub trees | `pytest -q tests/test_profile.py` · `claude plugin validate plugins/fitgate --strict` · `plugins/fitgate/bin/fitgate profile detect tests/fixtures/stubs/odoo18-ce --json` | Version, edition and addon paths detected from the stubs; validate exit 0 |
-| **P2 Ladder + cards** | M | `rules/ladder.md`, `ladder.compact.md`, SessionStart/UserPromptSubmit/SubagentStart hooks, card parser and validator, skills `ladder`, `card`, `init`, `mode`, `help` | `pytest -q tests/test_card.py tests/test_hooks_inject.py` · `plugins/fitgate/bin/fitgate hook session-start < tests/fixtures/hooks/session_start.json \| python3 -m json.tool` · `claude plugin details fitgate` | Budgets in §8.5 met. Manual smoke in `claude --plugin-dir plugins/fitgate`: the PO approval prompt yields `verdict: config` |
-| **P3 Evidence** | M/L | Source feature index, docs index, `fitgate search`, `standard-scout` agent | `pytest -q tests/test_knowledge.py` · `plugins/fitgate/bin/fitgate search "purchase approval" --profile tests/fixtures/profiles/18-ce.json --json` | ≥ 1 source hit on the stubs; FTS5 fallback tested |
-| **P4 Risk + guard** | M | Classifier, `rules/risk/*.json`, `fitgate rules verify`, `fitgate classify`, `fitgate approve`, PreToolUse/PostToolUse/Stop hooks, `review` skill, `ledger-reviewer` | `pytest -q tests/risk` · `plugins/fitgate/bin/fitgate rules verify --version 18.0 --odoo-src "$ODOO18_SRC"` · `plugins/fitgate/bin/fitgate classify tests/fixtures/diffs/move_post_override.py --json` | Red recall 100% on fixtures; verify exit 0 on real 17.0 and 18.0 sources |
-| **P5 Evals** | M | 12+ cases (§11.3), `scripts/build_eval_fixtures.py` | `claude plugin eval plugins/fitgate --case 'po-*' --runs 1 --ablation none` (iterate) · full run (§11.1) | §11.2 targets met; report archived in `docs/benchmarks/` |
+| **P1 Skeleton + profile** | S | Manifest, marketplace, `bin/checkbox`, `checkbox doctor`, `checkbox profile detect/show/write`, stub trees | `pytest -q tests/test_profile.py` · `claude plugin validate plugins/checkbox --strict` · `plugins/checkbox/bin/checkbox profile detect tests/fixtures/stubs/odoo18-ce --json` | Version, edition and addon paths detected from the stubs; validate exit 0 |
+| **P2 Ladder + cards** | M | `rules/ladder.md`, `ladder.compact.md`, SessionStart/UserPromptSubmit/SubagentStart hooks, card parser and validator, skills `ladder`, `card`, `init`, `mode`, `help` | `pytest -q tests/test_card.py tests/test_hooks_inject.py` · `plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json \| python3 -m json.tool` · `claude plugin details checkbox` | Budgets in §8.5 met. Manual smoke in `claude --plugin-dir plugins/checkbox`: the PO approval prompt yields `verdict: config` |
+| **P3 Evidence** | M/L | Source feature index, docs index, `checkbox search`, `standard-scout` agent | `pytest -q tests/test_knowledge.py` · `plugins/checkbox/bin/checkbox search "purchase approval" --profile tests/fixtures/profiles/18-ce.json --json` | ≥ 1 source hit on the stubs; FTS5 fallback tested |
+| **P4 Risk + guard** | M | Classifier, `rules/risk/*.json`, `checkbox rules verify`, `checkbox classify`, `checkbox approve`, PreToolUse/PostToolUse/Stop hooks, `review` skill, `ledger-reviewer` | `pytest -q tests/risk` · `plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC"` · `plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.py --json` | Red recall 100% on fixtures; verify exit 0 on real 17.0 and 18.0 sources |
+| **P5 Evals** | M | 12+ cases (§11.3), `scripts/build_eval_fixtures.py` | `claude plugin eval plugins/checkbox --case 'po-*' --runs 1 --ablation none` (iterate) · full run (§11.1) | §11.2 targets met; report archived in `docs/benchmarks/` |
 | **P6 Adapters** | S/M | AGENTS.md, Cursor and Windsurf rules, drift check, OpenCode instructions, Codex plugin | `python3 scripts/check_rule_copies.py` | Drift check green in CI |
-| **P7 Reach** (optional) | L | OCA index, `fitgate-mcp` server (installed into `$CLAUDE_PLUGIN_DATA` venv), `live` evidence through any read-only Odoo MCP, 19.0 overlays | MCP inspector smoke test; `rules verify --version 19.0` | Non-Claude hosts can call `search`/`classify` |
+| **P7 Reach** (optional) | L | OCA index, `checkbox-mcp` server (installed into `$CLAUDE_PLUGIN_DATA` venv), `live` evidence through any read-only Odoo MCP, 19.0 overlays | MCP inspector smoke test; `rules verify --version 19.0` | Non-Claude hosts can call `search`/`classify` |
 | **P8 Publish** | S | README with the benchmark table, marketplace listing, a LinkedIn post that answers "where do you draw the line" with numbers | `claude plugin validate . --strict` | Public repo, reproducible benchmark |
 
 **MVP** = P0–P5, on Claude Code, for 17.0 and 18.0.
@@ -469,7 +469,7 @@ Each phase follows explore → plan → implement → verify, and ends only when
 ## Appendix A — `rules/ladder.md` (v0 canonical text)
 
 ```markdown
-# Odoo change policy (fitgate)
+# Odoo change policy (checkbox)
 
 This project uses a fit-gap policy for Odoo changes. Project profile: {profile_line}.
 Policy level: {mode}.
@@ -481,7 +481,7 @@ is restated in one sentence and the code the change would touch is read.
 0. Understand — who does what, when, with which data. At most one clarifying question.
 1. Skip — a process change, training, or report filter may make the change unnecessary.
 2. Standard — the feature may already exist in {version} {edition}. Evidence comes from
-   `fitgate search` or the standard-scout agent, not from memory.
+   `checkbox search` or the standard-scout agent, not from memory.
 3. Configure — settings, groups, record rules via UI, routes, pricelists, templates.
 4. No-code — automation rules, server actions{studio_clause}. Python in a server action
    is still code and gets a risk tier.
@@ -492,9 +492,9 @@ is restated in one sentence and the code the change would touch is read.
    super(), and only then core business methods (always tier red).
 {hosting_clause}
 
-Every rung answer is recorded in a decision card at `.fitgate/decisions/NNNN-slug.md`
-(format: `/fitgate:ladder`). Cards are created with status `proposed`; approval is done
-by a human with `fitgate approve`, never by the agent.
+Every rung answer is recorded in a decision card at `.checkbox/decisions/NNNN-slug.md`
+(format: `/checkbox:ladder`). Cards are created with status `proposed`; approval is done
+by a human with `checkbox approve`, never by the agent.
 
 Risk tiers: green (views, reports, non-stored fields), amber (stored computes,
 defaults/onchanges on transactional models, access rights, crons), red (posting,
@@ -508,7 +508,7 @@ sudo() used to bypass access rights.
 
 `{hosting_clause}` for Online: "This database is on Odoo Online: custom Python modules cannot be installed, so rung 6 is not available; a remaining gap is reported on the card." `{studio_clause}` is ", Studio" only for Enterprise.
 
-## Appendix B — `.fitgate/profile.json`
+## Appendix B — `.checkbox/profile.json`
 
 ```json
 {
@@ -532,7 +532,7 @@ sudo() used to bypass access rights.
 
 Paths are relative to the project root. `odoo_source` is `null` on Online.
 
-`.fitgate/` layout in the Odoo project:
+`.checkbox/` layout in the Odoo project:
 
 - `profile.json`: committed.
 - `decisions/`: committed.

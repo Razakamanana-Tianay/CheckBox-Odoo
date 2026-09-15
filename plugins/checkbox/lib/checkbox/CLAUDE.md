@@ -1,20 +1,20 @@
-# lib/fitgate: core package
+# lib/checkbox: core package
 
 Stdlib-only Python ≥ 3.10. This package is imported by hooks, so import time matters. Keep top-level imports light, and import `sqlite3`, `ast` and `xml` inside the functions that need them.
 
 ## Modules
 
 ```
-__main__.py        python -m fitgate → cli.main
+__main__.py        python -m checkbox → cli.main
 cli.py             argparse; subcommands delegate to modules below; no logic here
-paths.py           project root discovery (.fitgate/ or git root), DATA dir resolution:
-                   FITGATE_DATA_DIR > CLAUDE_PLUGIN_DATA > ~/.cache/fitgate
+paths.py           project root discovery (.checkbox/ or git root), DATA dir resolution:
+                   CHECKBOX_DATA_DIR > CLAUDE_PLUGIN_DATA > ~/.cache/checkbox
 profile.py         detect(root) / load(root) / write(root, profile) / validate(profile)
-mode.py            resolve(): FITGATE_MODE > .fitgate/local.json > profile.mode > "full"
+mode.py            resolve(): CHECKBOX_MODE > .checkbox/local.json > profile.mode > "full"
 ladder.py          render(level, profile) from rules/ladder.md + ladder.compact.md
 card.py            parse(md) / validate(card, profile, approvals) / next_id(dir)
 approvals.py       approve(card_id) (human CLI only), is_approved(card), card_hash(block)
-session.py         .fitgate/.session/<session_id>.json read/update (touched addons, stop blocks)
+session.py         .checkbox/.session/<session_id>.json read/update (touched addons, stop blocks)
 risk/
   rules.py         load common.json + version overlay; verify(version, odoo_src)
   pyscan.py        ast visitor → findings
@@ -50,10 +50,10 @@ mcp_server.py      (P7) optional; imports the mcp SDK lazily; exposes search/cla
 - Every hook entry point is wrapped in `safe_main()`. On any exception it logs to stderr, prints nothing and exits 0. The strict-mode `pre-edit` deny is the only intentional block.
 - **Output:** exactly one JSON object on stdout, or nothing at all.
   - Injection hooks use `hookSpecificOutput.additionalContext` with `hookEventName` set.
-  - The PreToolUse deny uses `permissionDecision: "deny"` plus `permissionDecisionReason`, and the reason names the fix (`/fitgate:card`).
+  - The PreToolUse deny uses `permissionDecision: "deny"` plus `permissionDecisionReason`, and the reason names the fix (`/checkbox:card`).
 - **Performance:** hooks never touch `knowledge/`, and never parse more than the single file named in the tool input. `tests/test_hook_perf.py` asserts p95 < 150 ms over 50 runs on the fixtures.
 - **Paths:** read `cwd` from the hook input, not `os.getcwd()`, because worktrees change it. Resolve the project root from there.
-- **Approvals file:** `pre-bash` denies any command that runs `fitgate approve`, or that writes to or moves `.fitgate/approvals.json`. This is a heuristic; document its limits in the reason text.
+- **Approvals file:** `pre-bash` denies any command that runs `checkbox approve`, or that writes to or moves `.checkbox/approvals.json`. This is a heuristic; document its limits in the reason text.
 
 ## Odoo parsing rules
 

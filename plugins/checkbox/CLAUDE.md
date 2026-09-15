@@ -1,13 +1,13 @@
-# plugins/fitgate: the Claude Code plugin
+# plugins/checkbox: the Claude Code plugin
 
-This file is for fitgate developers. Claude Code does not load a plugin-root `CLAUDE.md` as context for plugin users, so nothing here reaches end users. Anything users' agents must know goes into `rules/` (injected by hooks) or into a skill.
+This file is for checkbox developers. Claude Code does not load a plugin-root `CLAUDE.md` as context for plugin users, so nothing here reaches end users. Anything users' agents must know goes into `rules/` (injected by hooks) or into a skill.
 
 ## Layout contract
 
 ```
 .claude-plugin/plugin.json   ← only file inside .claude-plugin/
-bin/fitgate                  ← executable launcher; adds ../lib to sys.path, calls fitgate.cli:main
-lib/fitgate/                 ← core package
+bin/checkbox                  ← executable launcher; adds ../lib to sys.path, calls checkbox.cli:main
+lib/checkbox/                 ← core package
 rules/                       ← ladder.md, ladder.compact.md, hosting.json, risk/*.json
 skills/<name>/SKILL.md       ← ladder, init, card, review, mode, help
 agents/<name>.md             ← standard-scout, ledger-reviewer
@@ -21,16 +21,16 @@ evals/                       ← claude plugin eval suite
 
 ## plugin.json
 
-- **Fields:** keep `name` (`fitgate`), `displayName`, `version`, `description`, `author`, `repository`, `license` (`MIT`) and `keywords`.
+- **Fields:** keep `name` (`checkbox`), `displayName`, `version`, `description`, `author`, `repository`, `license` (`MIT`) and `keywords`.
 - **Versioning:** bump `version` on every user-visible change.
 - **Evals path:** only add `experimental.evals` if the suite moves away from `evals/`.
 - **Validation:** run `claude plugin validate . --strict` from this directory. It must exit 0 with no warnings.
 
 ## hooks/hooks.json
 
-- Exec form only: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/fitgate", "hook", "<event>"]`.
+- Exec form only: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
 - Set an explicit `timeout` (seconds) on each handler: 5 for injection hooks, 5 for guards.
-- **Event → subcommand mapping** (keep it in sync with `lib/fitgate/hooks/`):
+- **Event → subcommand mapping** (keep it in sync with `lib/checkbox/hooks/`):
 
   | Event | Matcher | Subcommand |
   |---|---|---|
@@ -53,11 +53,11 @@ evals/                       ← claude plugin eval suite
   - One or two sentences.
   - Concrete trigger phrases: "add a field", "custom module", "override", "Odoo customization".
   - No marketing.
-  - Re-run `claude plugin details fitgate` after changing any description.
+  - Re-run `claude plugin details checkbox` after changing any description.
 - **Context:** skill bodies can reference `${CLAUDE_PLUGIN_ROOT}/rules/...` and supporting files (`extension-points.md`, `hosting.md`, `card-template.md`) that load on demand. Keep `SKILL.md` short and push detail into those files.
-- **Shared text:** skills must not restate the ladder. They point to it, or ask the CLI to render it (`fitgate ladder render --level full`).
-- **`card`:** instructs the agent to delegate evidence gathering to `fitgate:standard-scout`, then write `.fitgate/decisions/NNNN-slug.md` with `status: proposed`. It validates with `fitgate card validate <file>` before finishing.
-- **`init`:** runs `fitgate profile detect --json`, then asks the user to confirm or correct one field at a time (version, edition, hosting, source paths, custom addon paths). It then writes the profile with `fitgate profile write` and builds the source index. It offers the docs and OCA indexes as optional, and never runs them silently (network + disk).
+- **Shared text:** skills must not restate the ladder. They point to it, or ask the CLI to render it (`checkbox ladder render --level full`).
+- **`card`:** instructs the agent to delegate evidence gathering to `checkbox:standard-scout`, then write `.checkbox/decisions/NNNN-slug.md` with `status: proposed`. It validates with `checkbox card validate <file>` before finishing.
+- **`init`:** runs `checkbox profile detect --json`, then asks the user to confirm or correct one field at a time (version, edition, hosting, source paths, custom addon paths). It then writes the profile with `checkbox profile write` and builds the source index. It offers the docs and OCA indexes as optional, and never runs them silently (network + disk).
 
 ## Agents
 
@@ -73,11 +73,11 @@ evals/                       ← claude plugin eval suite
 
 ```bash
 mkdir -p /tmp/fg-smoke && cp -r ../../tests/fixtures/projects/18-ce/. /tmp/fg-smoke/
-cd /tmp/fg-smoke && claude --plugin-dir <repo>/plugins/fitgate
+cd /tmp/fg-smoke && claude --plugin-dir <repo>/plugins/checkbox
 ```
 
 Then try these prompts:
 
-1. `/fitgate:init` → the profile is confirmed.
+1. `/checkbox:init` → the profile is confirmed.
 2. "Write a module so purchase orders above 5000 need manager approval" → the answer is a card with `verdict: config`, and no file is written under `addons/`.
-3. `/fitgate:mode strict`, then "add a field on sale orders" without a card → the edit is denied with a reason that names `/fitgate:card`.
+3. `/checkbox:mode strict`, then "add a field on sale orders" without a card → the edit is denied with a reason that names `/checkbox:card`.

@@ -1,6 +1,6 @@
-# fitgate
+# checkbox
 
-fitgate is a Claude Code plugin (plus adapters for other agents) that makes coding agents walk an **Odoo fit-gap ladder** before writing Odoo code:
+checkbox is a Claude Code plugin (plus adapters for other agents) that makes coding agents walk an **Odoo fit-gap ladder** before writing Odoo code:
 
 standard → configure → no-code → existing module → code.
 
@@ -15,12 +15,12 @@ The full design is in `docs/ARCHITECTURE.md`. Read it before any structural chan
 ## Non-negotiables
 
 1. **The core is stdlib-only Python ≥ 3.10.**
-   - No third-party imports anywhere under `plugins/fitgate/lib/fitgate/`, except the optional MCP module (P7), which must import lazily.
+   - No third-party imports anywhere under `plugins/checkbox/lib/checkbox/`, except the optional MCP module (P7), which must import lazily.
    - Dev tools (pytest, ruff) live in `pyproject.toml` only.
 2. **Deterministic first.** Profile detection, card validation, risk tiering and guards are plain code with tests. Never delegate these to an LLM prompt.
 3. **No Odoo fact without a source.**
    - A model, method, module, setting or menu path added to `rules/`, `skills/`, `evals/` or tests must be checked against real Odoo source or the official documentation for that version.
-   - For risk rules, this means `fitgate rules verify`.
+   - For risk rules, this means `checkbox rules verify`.
    - If you cannot verify a fact, write `TODO(verify)` and say so. Do not guess.
 4. **Hooks are fast and fail-open.**
    - p95 ≤ 150 ms. No index loading inside hooks.
@@ -32,7 +32,7 @@ The full design is in `docs/ARCHITECTURE.md`. Read it before any structural chan
    - hook output cap is 10,000 chars.
 6. **Injected text is factual.** Phrase it as project policy ("This project uses…", "Cards are created with status proposed"), never as fake system commands.
 7. **Single source of truth.**
-   - The ladder text lives only in `plugins/fitgate/rules/ladder.md` and `ladder.compact.md`.
+   - The ladder text lives only in `plugins/checkbox/rules/ladder.md` and `ladder.compact.md`.
    - Skills, hooks and adapters render from it. `adapters/` is generated; never hand-edit it.
 8. **YAGNI applies to this repo too.** No option, flag or abstraction ships without a test or eval case that needs it.
 
@@ -43,8 +43,8 @@ CLAUDE.md                       ← you are here
 docs/ARCHITECTURE.md            ← design, plan, decisions, open questions
 docs/notes/platform-facts.md    ← verified Claude Code facts (P0 output)
 .claude-plugin/marketplace.json ← this repo is also a marketplace
-plugins/fitgate/                ← the plugin (see its CLAUDE.md)
-  lib/fitgate/                  ← core package (see its CLAUDE.md)
+plugins/checkbox/               ← the plugin (see its CLAUDE.md)
+  lib/checkbox/                 ← core package (see its CLAUDE.md)
   rules/                        ← ladder text + risk data (see its CLAUDE.md)
   skills/ agents/ hooks/ bin/
   evals/                        ← claude plugin eval suite (see its CLAUDE.md)
@@ -63,31 +63,31 @@ python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
 ruff check . && ruff format --check .
 pytest -q
 python3 scripts/check_rule_copies.py
-claude plugin validate plugins/fitgate --strict
+claude plugin validate plugins/checkbox --strict
 claude plugin validate . --strict
 
 # core CLI (works without Claude Code)
-plugins/fitgate/bin/fitgate doctor
-plugins/fitgate/bin/fitgate profile detect tests/fixtures/stubs/odoo18-ce --json
-plugins/fitgate/bin/fitgate search "purchase approval" --profile tests/fixtures/profiles/18-ce.json --json
-plugins/fitgate/bin/fitgate classify tests/fixtures/diffs/move_post_override.py --json
-plugins/fitgate/bin/fitgate rules verify --version 18.0 --odoo-src "$ODOO18_SRC"
+plugins/checkbox/bin/checkbox doctor
+plugins/checkbox/bin/checkbox profile detect tests/fixtures/stubs/odoo18-ce --json
+plugins/checkbox/bin/checkbox search "purchase approval" --profile tests/fixtures/profiles/18-ce.json --json
+plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.py --json
+plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC"
 
 # hook dry-runs (stdin payloads in tests/fixtures/hooks/)
-plugins/fitgate/bin/fitgate hook session-start < tests/fixtures/hooks/session_start.json | python3 -m json.tool
-plugins/fitgate/bin/fitgate hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
+plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json | python3 -m json.tool
+plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
 
 # run the plugin interactively (development)
-claude --plugin-dir plugins/fitgate
+claude --plugin-dir plugins/checkbox
 #   after editing hooks/agents/.mcp.json inside a session: /reload-plugins
 #   SKILL.md edits apply immediately
 
 # token cost of the plugin
-claude plugin details fitgate
+claude plugin details checkbox
 
 # evals: cheap iteration, then full run (real model calls, costs money)
-claude plugin eval plugins/fitgate --case 'po-*' --runs 1 --ablation none --scaffold
-claude plugin eval plugins/fitgate --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
+claude plugin eval plugins/checkbox --case 'po-*' --runs 1 --ablation none --scaffold
+claude plugin eval plugins/checkbox --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
 ```
 
 `$ODOO17_SRC`, `$ODOO18_SRC` and `$ODOO19_SRC` point to local checkouts of Odoo Community on those branches. `$ODOO18_EE_SRC` points to Enterprise, if available. Tests that need them are marked `@pytest.mark.odoo_src` and skip when the variable is unset.
@@ -112,10 +112,10 @@ claude plugin eval plugins/fitgate --allow-tools Write Edit --scaffold --no-publ
   - Human output goes to stdout and diagnostics to stderr.
 - **Plugin files.**
   - kebab-case names; skills under `skills/<name>/SKILL.md` with frontmatter `name` set explicitly.
-  - Hooks in exec form: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/fitgate", "hook", "<event>"]`.
+  - Hooks in exec form: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
 - **Language.** English for code, docs, skills and injected text. Odoo terms stay as Odoo writes them (`res.config.settings`, `account.move`).
 - **Commits.** Conventional Commits (`feat(risk): …`, `fix(hooks): …`). One phase per PR.
-- **Versioning.** Semver in `plugins/fitgate/.claude-plugin/plugin.json`. Bump it on every user-visible change; users only get updates on a bump.
+- **Versioning.** Semver in `plugins/checkbox/.claude-plugin/plugin.json`. Bump it on every user-visible change; users only get updates on a bump.
 
 ## Definition of done
 
@@ -129,9 +129,9 @@ claude plugin eval plugins/fitgate --allow-tools Write Edit --scaffold --no-publ
 ## Don't
 
 - Don't add dependencies to the core, or vendor Ponytail's rule text. We follow its pattern and credit it in the README; its text is not ours.
-- Don't let the agent approve cards, or write `.fitgate/approvals.json`, by any path.
+- Don't let the agent approve cards, or write `.checkbox/approvals.json`, by any path.
 - Don't store client code, client data or built indexes in this repo or in the plugin directory.
-- Don't reference files outside `plugins/fitgate/` from plugin components. Claude Code rejects paths that escape the plugin root, and marketplace installs don't copy them.
-- Don't put runtime state in `${CLAUDE_PLUGIN_ROOT}`; it changes on every update. Use `${CLAUDE_PLUGIN_DATA}` (via `FITGATE_DATA_DIR` resolution) or the project's `.fitgate/`.
+- Don't reference files outside `plugins/checkbox/` from plugin components. Claude Code rejects paths that escape the plugin root, and marketplace installs don't copy them.
+- Don't put runtime state in `${CLAUDE_PLUGIN_ROOT}`; it changes on every update. Use `${CLAUDE_PLUGIN_DATA}` (via `CHECKBOX_DATA_DIR` resolution) or the project's `.checkbox/`.
 - Don't use exit code 1 to block in hooks; it does not block. Use JSON `permissionDecision: "deny"` (PreToolUse) or the documented Stop decision.
 - Don't write eval expectations from memory. They are ground truth and must be confirmed against source.
