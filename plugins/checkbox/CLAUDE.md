@@ -76,17 +76,18 @@ mkdir -p /tmp/fg-smoke && cp -r ../../tests/fixtures/projects/18-ce/. /tmp/fg-sm
 cd /tmp/fg-smoke && claude --plugin-dir <repo>/plugins/checkbox
 ```
 
-What's testable after P2, honestly:
+What's testable after P3, honestly:
 
 1. `/checkbox:init` → the profile is confirmed. (P2: works)
-2. "Write a module so purchase orders above 5000 need manager approval" → the
-   ladder and card skills should still walk the rungs and draft a card, but
-   without P3's evidence search or the `standard-scout` agent, evidence for
-   a `standard`/`config` verdict is `unverified` -- and `card validate`
-   correctly *refuses* an `unverified`-only card for those verdicts (§5.1).
-   Expect the agent to say evidence is unverified and stop there, not to
-   produce a clean `verdict: config` card. That only becomes the full,
-   documented outcome once P3 lands.
+2. "Write a module so purchase orders above 5000 need manager approval" →
+   the ladder skill should delegate to `standard-scout`, which runs
+   `checkbox search` and finds the real `po_order_approval` settings field
+   and its settings-view help text ("Request managers to approve orders
+   above a minimum amount") -- both are indexed and searchable as of P3.
+   The card skill should then draft a card with `verdict: config` and real
+   `source` evidence citing those two hits, and `card validate` should
+   accept it. If evidence still comes back `unverified`, that's a
+   regression to investigate, not the expected P3 outcome.
 3. `/checkbox:mode strict`, then "add a field on sale orders" without a
    card → **not testable until P4**: there is no PreToolUse guard yet, so
    nothing will deny the edit. Confirm instead that `/checkbox:mode strict`

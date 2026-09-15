@@ -12,6 +12,7 @@ from checkbox import card as card_mod
 from checkbox import ladder as ladder_mod
 from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
+from checkbox.knowledge import search as search_mod
 from checkbox.paths import find_project_root
 
 
@@ -148,6 +149,33 @@ def cmd_mode_set(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search(args: argparse.Namespace) -> int:
+    if args.profile:
+        profile_file = Path(args.profile)
+        prof = profile_mod.load_file(profile_file)
+        project_root = profile_file.resolve().parent
+    else:
+        project_root = Path(args.root) if args.root else find_project_root()
+        try:
+            prof = profile_mod.load(project_root)
+        except FileNotFoundError:
+            print(
+                "no profile -- pass --profile <file> or run /checkbox:init first", file=sys.stderr
+            )
+            return 1
+    kinds = args.kind.split(",") if args.kind else None
+    results = search_mod.search(prof, project_root, args.query, kinds=kinds, limit=args.limit)
+    if args.json:
+        print(json.dumps(results, indent=2))
+        return 0
+    for result in results:
+        location = result["ref"] + (f":{result['line']}" if result.get("line") else "")
+        print(f"[{result['kind']}] {result['title']} -- {location}")
+        if result["snippet"]:
+            print(f"    {result['snippet']}")
+    return 0
+
+
 _HOOK_MAIN = {
     "session-start": "checkbox.hooks.session_start",
     "prompt": "checkbox.hooks.prompt",
@@ -232,6 +260,15 @@ def build_parser() -> argparse.ArgumentParser:
     mode_set.add_argument("--root", default=None)
     mode_set.add_argument("--json", action="store_true")
     mode_set.set_defaults(func=cmd_mode_set)
+
+    search = sub.add_parser("search", help="query the source evidence index")
+    search.add_argument("query")
+    search.add_argument("--profile", default=None, help="path to a profile JSON file")
+    search.add_argument("--root", default=None, help="project root (ignored if --profile is set)")
+    search.add_argument("--kind", default=None, help="comma-separated: source,docs,oca,live")
+    search.add_argument("--limit", type=int, default=10)
+    search.add_argument("--json", action="store_true")
+    search.set_defaults(func=cmd_search)
 
     return parser
 

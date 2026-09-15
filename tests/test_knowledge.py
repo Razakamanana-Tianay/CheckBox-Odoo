@@ -1,0 +1,152 @@
+"""Tests for checkbox.knowledge: store (FTS5/LIKE), source indexing, search."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "checkbox" / "lib"))
+
+from checkbox.knowledge import search as search_mod  # noqa: E402
+from checkbox.knowledge import source as source_mod  # noqa: E402
+from checkbox.knowledge import store  # noqa: E402
+from checkbox.profile import Profile  # noqa: E402
+
+STUB_18CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo18-ce"
+
+# -- source.py ----------------------------------------------------------------
+
+
+def test_build_indexes_the_manifest():
+    docs = source_mod.build([STUB_18CE / "addons"], "18.0")
+    titles = [d["title"] for d in docs]
+    assert any("Purchase (purchase)" in t for t in titles)
+
+
+def test_build_indexes_the_settings_field():
+    docs = source_mod.build([STUB_18CE / "addons"], "18.0")
+    field_docs = [d for d in docs if d["title"] == "res.config.settings.po_order_approval"]
+    assert len(field_docs) == 1
+    assert "Purchase Order Approval" in field_docs[0]["snippet"]
+    assert field_docs[0]["line"] is not None
+
+
+def test_build_indexes_the_settings_view_help_text():
+    # Regression coverage for a real bug hit while building this: the fixture
+    # XML's own comment used "--", which is illegal inside an XML comment and
+    # silently broke ET.parse -- _setting_view_docs correctly swallows the
+    # ParseError (a broken file must not crash indexing), which meant this
+    # whole code path produced zero docs with no visible error. This test
+    # exists so that ever happening again fails loudly here, not silently in
+    # a `checkbox search` that just returns fewer results than expected.
+    docs = source_mod.build([STUB_18CE / "addons"], "18.0")
+    view_docs = [d for d in docs if d["ref"].endswith("res_config_settings_views.xml")]
+    assert view_docs, "settings view XML produced no documents -- check it still parses"
+    assert any("Request managers to approve" in d["snippet"] for d in view_docs)
+
+
+def test_build_skips_unparseable_manifest(tmp_path):
+    addon = tmp_path / "broken_addon"
+    addon.mkdir()
+    (addon / "__manifest__.py").write_text("{ this is not valid python")
+    docs = source_mod.build([tmp_path], "18.0")
+    assert docs == []  # tolerated, not crashed
+
+
+def test_build_empty_roots_returns_empty_list(tmp_path):
+    assert source_mod.build([tmp_path / "does-not-exist"], "18.0") == []
+
+
+# -- store.py -------------------------------------------------------------------
+
+_SAMPLE_DOCS = [
+    {
+        "kind": "source",
+        "ref": "addons/purchase/models/res_config_settings.py",
+        "line": 12,
+        "title": "res.config.settings.po_order_approval",
+        "snippet": "Purchase Order Approval",
+        "version": "18.0",
+    },
+    {
+        "kind": "source",
+        "ref": "addons/sale/__manifest__.py",
+        "line": None,
+        "title": "Sales (sale)",
+        "snippet": "Sales orders and quotations",
+        "version": "18.0",
+    },
+]
+
+
+def test_store_index_and_search_fts5(tmp_path):
+    con = store.connect(tmp_path / "index.sqlite")
+    store.index_documents(con, _SAMPLE_DOCS)
+    results = store.search(con, "purchase approval")
+    con.close()
+    assert results
+    assert results[0]["title"] == "res.config.settings.po_order_approval"
+
+
+def test_store_search_like_fallback(tmp_path, monkeypatch):
+    # Force the LIKE path regardless of what this Python build's sqlite3
+    # actually supports, per ARCHITECTURE.md §7.2: "the core checks this at
+    # runtime" -- both paths need real coverage, not just whichever one the
+    # CI machine happens to have compiled in.
+    monkeypatch.setattr(store, "has_fts5", lambda: False)
+    con = store.connect(tmp_path / "index_like.sqlite")
+    store.index_documents(con, _SAMPLE_DOCS)
+    results = store.search(con, "purchase")
+    con.close()
+    assert results
+    assert all(r["score"] == 1.0 for r in results)  # LIKE path's flat score
+
+
+def test_store_search_no_match_returns_empty(tmp_path):
+    con = store.connect(tmp_path / "index.sqlite")
+    store.index_documents(con, _SAMPLE_DOCS)
+    results = store.search(con, "nonexistent_zzz_query")
+    con.close()
+    assert results == []
+
+
+def test_store_clear_empties_the_table(tmp_path):
+    con = store.connect(tmp_path / "index.sqlite")
+    store.index_documents(con, _SAMPLE_DOCS)
+    store.clear(con)
+    results = store.search(con, "purchase")
+    con.close()
+    assert results == []
+
+
+# -- search.py (end to end against the stub) -------------------------------------
+
+
+def test_search_end_to_end_against_stub(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path / "data"))
+    profile = Profile(
+        odoo_version="18.0",
+        edition="community",
+        hosting="on-premise",
+        odoo_source=str(STUB_18CE),
+    )
+    results = search_mod.search(profile, project_root=REPO_ROOT, query="purchase approval")
+    assert results
+    assert any("po_order_approval" in r["title"] for r in results)
+
+
+def test_search_index_is_cached_across_calls(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path / "data"))
+    profile = Profile(odoo_version="18.0", edition="community", odoo_source=str(STUB_18CE))
+    path1 = search_mod.ensure_index(profile, project_root=REPO_ROOT)
+    path2 = search_mod.ensure_index(profile, project_root=REPO_ROOT)
+    assert path1 == path2
+    assert path1.is_file()
+
+
+def test_search_kind_filter_excludes_other_kinds(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path / "data"))
+    profile = Profile(odoo_version="18.0", edition="community", odoo_source=str(STUB_18CE))
+    results = search_mod.search(profile, project_root=REPO_ROOT, query="purchase", kinds=["docs"])
+    assert results == []  # nothing of kind "docs" exists yet (P3 scope is source-only)

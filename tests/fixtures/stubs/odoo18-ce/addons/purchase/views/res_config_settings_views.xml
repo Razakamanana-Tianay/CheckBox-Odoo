@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mimics addons/purchase/views/res_config_settings_views.xml (real file,
+     branch 18.0, verified against
+     raw.githubusercontent.com/odoo/odoo/18.0/addons/purchase/views/res_config_settings_views.xml
+     on 2026-09-15). Trimmed to the setting block checkbox's source index
+     (P3) actually reads: this is the "settings view blocks (titles and
+     help)" signal from ARCHITECTURE.md section 7.1, and it carries the
+     richer, more human-readable text. The Python field's own string label
+     is just "Purchase Order Approval", but this help text spells out the
+     whole po-approval-threshold seed case in one sentence. -->
+<odoo>
+    <record id="res_config_settings_view_form_purchase" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.purchase</field>
+        <field name="model">res.config.settings</field>
+        <field name="arch" type="xml">
+            <form>
+                <block title="Orders" name="purchase_setting_container">
+                    <setting id="po_order_approval" company_dependent="1" help="Request managers to approve orders above a minimum amount">
+                        <field name="po_order_approval"/>
+                    </setting>
+                </block>
+            </form>
+        </field>
+    </record>
+</odoo>

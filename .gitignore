@@ -17,3 +17,6 @@ evals/results/
 
 # scratch Odoo source clones (see docs/notes/ for how these are fetched)
 .odoo-src/
+
+# local Claude Code session/harness state, not project data
+.claude/

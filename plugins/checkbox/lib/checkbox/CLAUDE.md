@@ -21,11 +21,12 @@ risk/
   xmlscan.py       ir.rule / ir.model.access / groups / noupdate → findings
   classify.py      classify(path|diff, profile) → {tier, reasons[]}
 knowledge/
-  store.py         sqlite helpers; has_fts5(); search(); LIKE fallback
-  source.py        build feature index from addons paths (manifests, settings fields/views, menus)
-  docs.py          sparse shallow clone of odoo/documentation@version; section splitter
-  oca.py           curated repo list; shallow clones; manifest fields
-  search.py        unified search → Evidence list
+  store.py         sqlite helpers; has_fts5(); search(); LIKE fallback — shipped, P3
+  source.py        build feature index from addons paths (manifests, settings fields/views) — shipped, P3.
+                   _description/menu-name indexing deferred; not needed by any seed case yet
+  docs.py          sparse shallow clone of odoo/documentation@version; section splitter — NOT built (P3 follow-up)
+  oca.py           curated repo list; shallow clones; manifest fields — NOT built (P3 follow-up)
+  search.py        unified search → Evidence list — shipped, P3, `source` kind only until docs.py/oca.py land
 hooks/
   common.py        read stdin JSON, safe_main() wrapper (fail-open), emit() helpers
   session_start.py prompt.py subagent_start.py pre_edit.py pre_bash.py post_edit.py stop.py

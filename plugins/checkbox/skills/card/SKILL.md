@@ -11,13 +11,13 @@ don't retype it from memory.
 ## Steps
 
 1. **Get the id.** Run `checkbox card next-id` (or `--json` for scripting).
-2. **Gather evidence** for the verdict. If the `standard-scout` agent is
-   available in this plugin (P3+), delegate evidence-gathering to it and
-   use only what it returns -- stop at the first rung it proves, and mark
-   evidence `unverified` if it finds nothing rather than guessing. If
-   `standard-scout` isn't available yet, evidence for `standard`/`config`/
-   `module` verdicts comes only from files you actually read this session;
-   mark anything else `unverified`.
+2. **Gather evidence** for the verdict. Delegate to the `standard-scout`
+   agent and use only what it returns -- stop at the first rung it proves,
+   and mark evidence `unverified` if it finds nothing rather than
+   guessing. `standard-scout` only has `source` evidence to work with so
+   far (addon manifests and `res.config.settings` fields/views); `docs` and
+   `oca` evidence aren't indexed yet, so a genuinely undocumented feature
+   will correctly come back `unverified` rather than confirmed.
 3. **Fill the template** from `rules/card-template.md`: `id`, `need`
    (one sentence), `profile` (`{version} / {edition} / {hosting}`),
    `verdict`, `evidence`, `steps`, `addons`, `extension_point`, `tier`,

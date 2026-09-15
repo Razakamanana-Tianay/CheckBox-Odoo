@@ -29,9 +29,11 @@ CLI (works without Claude Code too):
   checkbox ladder render --level lite|full|strict
   checkbox card next-id|validate <file>
   checkbox mode show|set <level>
+  checkbox search "<query>" [--kind source] [--profile <file>]
 
-Current status: the source/docs/OCA evidence index (checkbox search),
-the risk classifier and the PreToolUse/PostToolUse/Stop guard are not
-implemented yet (tracked as P3/P4 in docs/ARCHITECTURE.md) -- say so if
-asked, don't imply they already run.
+Current status: `checkbox search` covers `source` evidence only (addon
+manifests, res.config.settings fields/views) -- `docs` and `oca` evidence,
+the risk classifier, and the PreToolUse/PostToolUse/Stop guard are not
+implemented yet (tracked as P3 follow-up / P4 in docs/ARCHITECTURE.md) --
+say so if asked, don't imply they already run.
 ```

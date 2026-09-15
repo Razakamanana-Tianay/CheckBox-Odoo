@@ -159,9 +159,14 @@ def _find_web_enterprise(root: Path) -> Path | None:
     return None
 
 
-def _find_addon_roots(root: Path) -> list[str]:
+def find_addon_roots(root: Path) -> list[str]:
     """Return, relative to *root*, every directory whose children include an
-    installable-module directory (one holding `__manifest__.py`)."""
+    installable-module directory (one holding `__manifest__.py`).
+
+    Public (not `_`-prefixed) because knowledge/source.py (P3) reuses this
+    to enumerate addon roots inside `odoo_source` for indexing, instead of
+    re-deriving the same candidate list.
+    """
     candidates = [
         root,
         root / "odoo" / "addons",
@@ -214,7 +219,7 @@ def detect(root: Path) -> Profile:
         profile.edition = "community"
         detected["edition"] = "no web_enterprise in the checked addon paths"
 
-    addon_roots = _find_addon_roots(root)
+    addon_roots = find_addon_roots(root)
     if addon_roots:
         detected["addon_paths"] = ", ".join(addon_roots)
 
@@ -227,6 +232,35 @@ def load(root: Path) -> Profile:
     data = json.loads(path.read_text(encoding="utf-8"))
     known = {f for f in Profile.__dataclass_fields__}
     return Profile(**{k: v for k, v in data.items() if k in known})
+
+
+def load_file(path: Path) -> Profile:
+    """Load a profile from an arbitrary JSON file, not the `.checkbox/profile.json`
+    convention `load()` assumes -- for `checkbox search --profile <file>`,
+    matching the CLI usage documented in the repo's CLAUDE.md."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    known = {f for f in Profile.__dataclass_fields__}
+    return Profile(**{k: v for k, v in data.items() if k in known})
+
+
+def resolve_addon_roots(profile: Profile, project_root: Path) -> list[Path]:
+    """Absolute addon-root directories for *profile*: Odoo's own bundled
+    addons (under `odoo_source`), Enterprise's (under `enterprise_source`),
+    and the project's own custom/third-party addons (relative to
+    *project_root*, per Appendix B -- a different base than `odoo_source`).
+    """
+    roots: list[Path] = []
+    if profile.odoo_source:
+        base = Path(profile.odoo_source)
+        for rel in find_addon_roots(base):
+            if rel in (".", "custom_addons"):
+                continue  # checkout root itself, or a dir outside Odoo's own layout
+            roots.append(base / rel)
+    if profile.enterprise_source:
+        roots.append(Path(profile.enterprise_source))
+    for rel in (*profile.custom_addons, *profile.third_party_addons):
+        roots.append(Path(project_root) / rel)
+    return roots
 
 
 def write(root: Path, profile: Profile) -> Path:

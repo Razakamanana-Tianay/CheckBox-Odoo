@@ -19,9 +19,11 @@ profile) -- don't restate it here, that file is the single source of truth.
    the solution, never the reading.
 3. **Climb the ladder**, stopping at the first rung that holds. For rung 2
    (standard) and rung 5 (module), evidence must come from `checkbox search`
-   or delegating to the `standard-scout` agent (P3) -- never from model
-   memory. If neither is available yet in this project, evidence is
-   `unverified` and the card must say so.
+   or delegating to the `standard-scout` agent -- never from model memory.
+   As of this plugin's current version, the index only covers `source`
+   evidence (addon manifests and `res.config.settings` fields/views) --
+   `docs`/`oca` evidence isn't indexed yet. If a search finds nothing,
+   evidence is `unverified` and the card must say so; don't guess.
 4. **Hosting and edition change what's available.** Read
    `${CLAUDE_PLUGIN_ROOT}/rules/hosting.md` when the profile's hosting is
    `online` or `odoo-sh`, or the answer might assume a capability (custom
