@@ -1,0 +1,1 @@
+checkbox ({mode}): before Odoo code, climb the ladder — skip? standard in {version} {edition}? configure? no-code? existing module? Evidence via `checkbox search`, not memory. Code only the gap, least invasive point. Card required at .checkbox/decisions/. Full rungs: /checkbox:ladder

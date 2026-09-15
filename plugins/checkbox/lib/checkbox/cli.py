@@ -81,6 +81,20 @@ def cmd_profile_write(args: argparse.Namespace) -> int:
     return 0
 
 
+_HOOK_MAIN = {
+    "session-start": "checkbox.hooks.session_start",
+    "prompt": "checkbox.hooks.prompt",
+    "subagent-start": "checkbox.hooks.subagent_start",
+}
+
+
+def cmd_hook(args: argparse.Namespace) -> int:
+    import importlib
+
+    module = importlib.import_module(_HOOK_MAIN[args.event])
+    return int(module.main())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="checkbox")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
     write.add_argument("--root", default=None)
     write.add_argument("--json", action="store_true")
     write.set_defaults(func=cmd_profile_write)
+
+    hook = sub.add_parser("hook", help="run a hook entry point (stdin: the hook's JSON payload)")
+    hook.add_argument("event", choices=sorted(_HOOK_MAIN))
+    hook.set_defaults(func=cmd_hook)
 
     return parser
 

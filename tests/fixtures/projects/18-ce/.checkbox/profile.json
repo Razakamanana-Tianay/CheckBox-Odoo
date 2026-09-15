@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "odoo_version": "18.0",
+  "edition": "community",
+  "hosting": "on-premise",
+  "localizations": [],
+  "odoo_source": null,
+  "enterprise_source": null,
+  "custom_addons": ["addons"],
+  "third_party_addons": [],
+  "mode": "full",
+  "detected": {},
+  "confirmed_by_user": true
+}
