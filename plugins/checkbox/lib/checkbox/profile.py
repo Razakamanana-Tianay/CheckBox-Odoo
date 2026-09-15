@@ -48,11 +48,25 @@ def _profile_path(root: Path) -> Path:
 
 
 def _resolve_release_py(root: Path) -> Path | None:
-    """Return the first existing candidate location for Odoo's `odoo/release.py`."""
+    """Return the first existing candidate location for Odoo's `odoo/release.py`.
+
+    Every candidate follows the same shape, `<checkout_root>/odoo/release.py`
+    -- `_parse_version_info`'s caller derives `odoo_source` as
+    `release_py.parent.parent`, which only equals the checkout root under
+    that shape. Appendix B's sibling-checkout example, `"odoo_source":
+    "../odoo"`, names the sibling directory "odoo" and treats it as a full
+    checkout, not as the inner package folder -- so the sibling candidate
+    needs `odoo` twice (the checkout dir's own name, then its `odoo/`
+    package), not once. A first version of this function had only one
+    `odoo` segment here, which silently resolved `odoo_source` to the
+    checkout's *parent* instead of the checkout itself; caught by
+    tests/test_profile.py::test_detect_sibling_checkout_layout before P3
+    could build an index against the wrong path.
+    """
     candidates = [
         root / "odoo" / "release.py",  # root is (or vendors) the Odoo source checkout
         root / "release.py",  # root is the `odoo/` package dir itself
-        root.parent / "odoo" / "release.py",  # sibling checkout, per Appendix B's "../odoo"
+        root.parent / "odoo" / "odoo" / "release.py",  # sibling checkout named "odoo", Appendix B
     ]
     for candidate in candidates:
         if candidate.is_file():

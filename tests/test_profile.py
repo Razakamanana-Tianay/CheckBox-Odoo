@@ -46,6 +46,26 @@ def test_detect_odoo18_ee_edition():
     assert Path(prof.enterprise_source).name == "enterprise"
 
 
+def test_detect_sibling_checkout_layout(tmp_path):
+    # Appendix B's "odoo_source": "../odoo" convention: the project root and
+    # a sibling checkout named "odoo" live side by side, and that sibling IS
+    # a full checkout (its own odoo/release.py inside it), not release.py
+    # sitting directly in the sibling dir. Regression test for the bug the
+    # advisor caught: _resolve_release_py's sibling candidate originally had
+    # only one "odoo" segment, so odoo_source resolved one level too high.
+    project = tmp_path / "myproject"
+    project.mkdir()
+    sibling_checkout = tmp_path / "odoo"
+    (sibling_checkout / "odoo").mkdir(parents=True)
+    (sibling_checkout / "odoo" / "release.py").write_text(
+        "version_info = (18, 0, 0, 'final', 0, '')\n"
+    )
+
+    prof = profile_mod.detect(project)
+    assert prof.odoo_version == "18.0"
+    assert prof.odoo_source == str(sibling_checkout)
+
+
 def test_detect_finds_addon_paths():
     prof = profile_mod.detect(STUBS / "odoo18-ce")
     assert "addon_paths" in prof.detected
