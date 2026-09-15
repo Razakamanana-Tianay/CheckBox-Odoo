@@ -454,6 +454,7 @@ Each phase follows explore → plan → implement → verify, and ends only when
 | D6 | Human approval through a CLI the agent is denied | Approval must not be self-granted | Claude Code ships a native approval primitive |
 | D7 | Local indexes, never shipped | Licensing, size, data residency | Never |
 | D8 | Its own name, not "Ponytail for Odoo" | Avoid confusion with an unrelated MIT project; credit Ponytail in the README | — |
+| D9 | Eval fixtures are hand-written stubs + `scaffold.sh`, not a generator script | A concurrent, uncoordinated session independently built `scripts/build_eval_fixtures.py` + per-case `fixture/` dirs (following a stale nested `evals/CLAUDE.md` never updated since the P1 import) while this session built stub+scaffold.sh. Neither committed `case.yaml`/`scaffold.sh` ever referenced `fixture/`, so the generator's output was unconsumed by any real run. User's explicit decision, 2026-09-15: keep stub+scaffold.sh. History rewritten to drop the 6 generator commits (`f798137`..`d87934a`) rather than leave an add-then-revert trail in public history. Full story: `docs/notes/status.md` | A generator gains a real second consumer beyond its own drift check (e.g. another tool needs the sliced-fixture format) |
 
 ## 15. Open questions (resolve in P0)
 

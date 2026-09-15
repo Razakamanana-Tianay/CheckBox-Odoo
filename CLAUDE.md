@@ -101,6 +101,7 @@ claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --n
 
 ## Workflow: explore → plan → implement → verify
 
+0. **Orient.** Before anything else, read `docs/notes/status.md` for the current phase and any settled-but-not-obvious decisions, then `git log --oneline -15` and `git status` — if either shows activity you don't recognize, another session may be active on this repo (check with a multi-session tool if you have one); investigate and reconcile before building on top of it, don't guess or silently overwrite. This step exists because skipping it once caused two sessions to build incompatible designs for the same subsystem (docs/notes/status.md has the full story).
 1. **Explore.** Read the relevant section of `docs/ARCHITECTURE.md` and the nested `CLAUDE.md` of the area you touch. For anything about Claude Code behaviour, read `docs/notes/platform-facts.md` first. If the fact is not there, verify it at https://code.claude.com/docs (plugins-reference, hooks, plugin-evals, skills, sub-agents) and add it to that file with the link and date.
 2. **Plan.** State the files to change, the tests to add, and the check command that proves it. Keep the change inside one phase of the plan (§13).
 3. **Implement.** Write the test first when the behaviour is deterministic.
