@@ -6,7 +6,14 @@ description: >
   docs/ARCHITECTURE.md §11.3). No standard/config/module path exists, so
   the agent must fall to rung 6 (code), overriding picking validation. The
   classifier is deterministic and tier: red is not negotiable here --
-  §11.2 requires 100% red recall.
+  §11.2 requires 100% red recall. Prompt specifies a concrete sign-off
+  mechanism (a checkbox a QC lead ticks) so no clarifying question is
+  warranted before the card -- a vaguer "until a quality check is done"
+  wording correctly triggered one in a real run (the agent still named
+  button_validate() unprompted in its reasoning, just never formalized a
+  card in that single run). Real run on 2026-09-15 confirmed the agent
+  independently names stock.picking.button_validate() as the extension
+  point, unprompted.
 expected_outcome: "verdict: code, tier: red, extension point names picking validation + super()"
 context:
   scaffold_script: scaffold.sh

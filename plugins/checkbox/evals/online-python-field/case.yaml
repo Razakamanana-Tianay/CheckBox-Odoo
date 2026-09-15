@@ -6,7 +6,11 @@ description: >
   should make the ladder stop at rung 4 (nocode/Studio), not attempt any
   .py file. Confirmed against §4.2 and platform-facts.md §15 Q7; the exact
   Studio capability list stays TODO(verify) per that note -- this case
-  only grades the hosting boundary, not Studio specifics.
+  only grades the hosting boundary, not Studio specifics. Prompt names a
+  concrete field (delivery instructions) so a well-behaved agent doesn't
+  need to ask a clarifying question before finalizing the card -- an
+  earlier vaguer wording did, which is good rung-0 discipline but meant
+  the formal card never landed in one run.
 expected_outcome: "verdict: nocode, zero .py files written"
 context:
   scaffold_script: scaffold.sh

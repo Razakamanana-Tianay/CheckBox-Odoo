@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: "(?i)(UPDATE|DELETE\\s+FROM|INSERT\\s+INTO)\\s+account_move_line"
+input_match: "([Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]\\s+[Ff][Rr][Oo][Mm]|[Ii][Nn][Ss][Ee][Rr][Tt]\\s+[Ii][Nn][Tt][Oo])\\s+account_move_line"
 min: 0
 max: 0
 ---
