@@ -49,7 +49,7 @@ plugins/checkbox/               ← the plugin (see its CLAUDE.md)
   skills/ agents/ hooks/ bin/
   evals/                        ← claude plugin eval suite (see its CLAUDE.md)
 adapters/                       ← generated files for other agents (see its CLAUDE.md)
-scripts/                        ← build_adapters.py, check_rule_copies.py (P6, not built yet), build_eval_fixtures.py
+scripts/                        ← build_adapters.py, check_rule_copies.py
 tests/                          ← pytest; fixtures/stubs are tiny fake Odoo trees
 ```
 
@@ -64,7 +64,7 @@ ruff check . && ruff format --check .
 pytest -q
 claude plugin validate plugins/checkbox   # no --strict: the plugin-root CLAUDE.md warning is accepted by design, see its own header
 claude plugin validate . --strict
-# python3 scripts/check_rule_copies.py     # P6, not built yet -- add back to this list once it ships
+python3 scripts/check_rule_copies.py
 
 # core CLI (works without Claude Code)
 plugins/checkbox/bin/checkbox doctor
@@ -78,7 +78,7 @@ plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SR
 plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_start.json
 # SubagentStart and PreToolUse (P4) use the hookSpecificOutput JSON form:
 plugins/checkbox/bin/checkbox hook subagent-start < tests/fixtures/hooks/subagent_start.json | python3 -m json.tool
-plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool  # P4, not built yet
+plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
 
 # run the plugin interactively (development)
 claude --plugin-dir plugins/checkbox

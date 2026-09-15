@@ -8,7 +8,7 @@ This file is for checkbox developers. Claude Code does not load a plugin-root `C
 .claude-plugin/plugin.json   ← only file inside .claude-plugin/
 bin/checkbox                  ← executable launcher; adds ../lib to sys.path, calls checkbox.cli:main
 lib/checkbox/                 ← core package
-rules/                       ← ladder.md, ladder.compact.md, hosting.json, risk/*.json
+rules/                       ← ladder.md, ladder.compact.md, hosting.md, risk/*.json
 skills/<name>/SKILL.md       ← ladder, init, card, review, mode, help
 agents/<name>.md             ← standard-scout, ledger-reviewer
 hooks/hooks.json

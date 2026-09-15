@@ -8,7 +8,9 @@ This directory is the product's knowledge. Treat every line as a claim a user wi
 ladder.md           canonical full ladder (template; see ARCHITECTURE Appendix A)
 ladder.compact.md   ≤ 400 chars; per-prompt and subagent reminder
 extension-points.md least→most invasive extension points, with one example each
-hosting.json        hosting × edition matrix (custom python, studio, source availability)
+hosting.md          hosting × edition matrix (§4.2), loaded on demand by the ladder skill
+hosting.json        machine-readable form of hosting.md -- deferred, no consumer needs it
+                     yet (init/search only ever read the prose); build it when one does
 risk/common.json    version-independent rules (sudo, cr.execute, auth='public', ir.rule, …)
 risk/17.0.json      version overlays: models, methods, source file per entry
 risk/18.0.json
@@ -48,7 +50,7 @@ risk/19.0.json
 - **Tier definitions:** ARCHITECTURE §6.1. When unsure between amber and red, choose red and write the reason in `note`.
 - **Tests.** Each rule id needs one positive and one negative fixture in `tests/fixtures/diffs/`.
 
-## hosting.json rules
+## hosting.json rules (once it exists -- not built yet, see the Files table)
 
-- **Content:** one entry per `hosting` × `edition`, with the keys `custom_python`, `studio`, `source_available`, `notes` and `verified` (a doc URL plus date).
+- **Content, when built:** one entry per `hosting` × `edition`, with the keys `custom_python`, `studio`, `source_available`, `notes` and `verified` (a doc URL plus date) -- matching `hosting.md`'s already-verified table (§4.2), just machine-readable.
 - **Maintenance:** re-verify at each major Odoo release. If a capability is uncertain for a version (for example, Python in server actions on Online), set the value to `"unknown"`. The ladder then renders a neutral clause instead of a promise.
