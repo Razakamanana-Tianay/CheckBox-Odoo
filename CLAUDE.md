@@ -49,7 +49,7 @@ plugins/checkbox/               ← the plugin (see its CLAUDE.md)
   skills/ agents/ hooks/ bin/
   evals/                        ← claude plugin eval suite (see its CLAUDE.md)
 adapters/                       ← generated files for other agents (see its CLAUDE.md)
-scripts/                        ← build_adapters.py, check_rule_copies.py
+scripts/                        ← build_adapters.py, check_rule_copies.py (P6, not built yet), build_eval_fixtures.py
 tests/                          ← pytest; fixtures/stubs are tiny fake Odoo trees
 ```
 
@@ -62,9 +62,9 @@ python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
 # fast checks: run before every commit
 ruff check . && ruff format --check .
 pytest -q
-python3 scripts/check_rule_copies.py
 claude plugin validate plugins/checkbox   # no --strict: the plugin-root CLAUDE.md warning is accepted by design, see its own header
 claude plugin validate . --strict
+# python3 scripts/check_rule_copies.py     # P6, not built yet -- add back to this list once it ships
 
 # core CLI (works without Claude Code)
 plugins/checkbox/bin/checkbox doctor
