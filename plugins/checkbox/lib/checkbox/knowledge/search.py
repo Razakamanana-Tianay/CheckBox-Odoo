@@ -27,13 +27,38 @@ def _index_path(roots: list[Path], version: str) -> Path:
     return paths.data_dir() / "source" / f"{digest}.sqlite"
 
 
+def _newest_mtime(roots: list[Path]) -> float:
+    """Latest mtime of any file under *roots* -- 0.0 if none exist.
+
+    Cached indexes never expired on their own (caught while building P5's
+    eval fixtures: adding a settings view *after* the first `checkbox
+    search` call left it permanently unindexed, silently, since `.sqlite`
+    existing was the only staleness check). This is a full walk, same cost
+    as `source.build`'s own walk, but `ensure_index` isn't hook-gated
+    (lib/checkbox/CLAUDE.md: hooks never touch `knowledge/`), so it's not
+    bound by the 150ms hook budget.
+    """
+    newest = 0.0
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file():
+                mtime = path.stat().st_mtime
+                if mtime > newest:
+                    newest = mtime
+    return newest
+
+
 def ensure_index(profile: Profile, project_root: Path, *, force: bool = False) -> Path:
-    """Build the source index for *profile* if it doesn't exist yet (or
-    *force* is set), return its path."""
+    """Build the source index for *profile* if it doesn't exist yet, is
+    stale (some file under an addon root is newer than the index), or
+    *force* is set. Returns the index path either way."""
     roots = resolve_addon_roots(profile, project_root)
     version = profile.odoo_version or "unknown"
     db_path = _index_path(roots, version)
-    if db_path.is_file() and not force:
+    stale = db_path.is_file() and _newest_mtime(roots) > db_path.stat().st_mtime
+    if db_path.is_file() and not force and not stale:
         return db_path
     docs = source_mod.build(roots, version)
     con = store.connect(db_path)

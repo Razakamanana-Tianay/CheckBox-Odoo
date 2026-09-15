@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mimics addons/stock/views/res_config_settings_views.xml (real file,
+     branch 17.0, verified against
+     raw.githubusercontent.com/odoo/odoo/17.0/addons/stock/views/res_config_settings_views.xml
+     on 2026-09-15). Trimmed to the "Traceability" block that wraps
+     group_stock_production_lot, the serial-tracking seed case's evidence. -->
+<odoo>
+    <record id="res_config_settings_view_form_stock" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.stock</field>
+        <field name="model">res.config.settings</field>
+        <field name="arch" type="xml">
+            <form>
+                <block title="Traceability" id="production_lot_info">
+                    <setting id="full_traceability" help="Get a full traceability from vendors to customers">
+                        <field name="group_stock_production_lot"/>
+                    </setting>
+                </block>
+            </form>
+        </field>
+    </record>
+</odoo>

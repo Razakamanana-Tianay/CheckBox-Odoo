@@ -1,4 +1,4 @@
-<!-- Fixture view inheritance -- the P5 port-of-loading seed case.
+<!-- Fixture view inheritance, the P5 port-of-loading seed case.
      A plain xpath addition to the quotation form, no ir.rule/access/groups/
      noupdate. `checkbox classify` must return tier 'green'. -->
 <odoo>

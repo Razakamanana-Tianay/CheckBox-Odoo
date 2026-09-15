@@ -14,6 +14,7 @@ from checkbox.knowledge import store  # noqa: E402
 from checkbox.profile import Profile  # noqa: E402
 
 STUB_18CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo18-ce"
+STUB_17CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo17-ce"
 
 # -- source.py ----------------------------------------------------------------
 
@@ -44,6 +45,40 @@ def test_build_indexes_the_settings_view_help_text():
     view_docs = [d for d in docs if d["ref"].endswith("res_config_settings_views.xml")]
     assert view_docs, "settings view XML produced no documents -- check it still parses"
     assert any("Request managers to approve" in d["snippet"] for d in view_docs)
+
+
+def test_build_indexes_sale_margin_manifest():
+    # so-line-margin seed case (docs/ARCHITECTURE.md §11.3): rung 5
+    # "module" evidence is the manifest alone.
+    docs = source_mod.build([STUB_18CE / "addons"], "18.0")
+    titles = [d["title"] for d in docs]
+    assert any("Margins in Sales Orders (sale_margin)" in t for t in titles)
+
+
+def test_build_indexes_dropshipping_setting():
+    # dropship seed case: module_stock_dropshipping, a module_* Boolean.
+    docs = source_mod.build([STUB_18CE / "addons"], "18.0")
+    field_docs = [d for d in docs if d["title"] == "res.config.settings.module_stock_dropshipping"]
+    assert len(field_docs) == 1
+
+
+def test_build_indexes_tax_rounding_setting_17ce():
+    # tax-rounding-per-line seed case, 17.0 CE.
+    docs = source_mod.build([STUB_17CE / "addons"], "17.0")
+    field_docs = [
+        d for d in docs if d["title"] == "res.config.settings.tax_calculation_rounding_method"
+    ]
+    assert len(field_docs) == 1
+
+
+def test_build_indexes_serial_tracking_setting_17ce():
+    # serial-tracking seed case, 17.0 CE.
+    docs = source_mod.build([STUB_17CE / "addons"], "17.0")
+    field_docs = [d for d in docs if d["title"] == "res.config.settings.group_stock_production_lot"]
+    assert len(field_docs) == 1
+    assert "Lots & Serial Numbers" in field_docs[0]["snippet"]
+    view_docs = [d for d in docs if d["ref"].endswith("res_config_settings_views.xml")]
+    assert any("Get a full traceability" in d["snippet"] for d in view_docs)
 
 
 def test_build_skips_unparseable_manifest(tmp_path):
@@ -143,6 +178,35 @@ def test_search_index_is_cached_across_calls(tmp_path, monkeypatch):
     path2 = search_mod.ensure_index(profile, project_root=REPO_ROOT)
     assert path1 == path2
     assert path1.is_file()
+
+
+def test_search_index_rebuilds_when_source_changes(tmp_path, monkeypatch):
+    # Regression for a real bug hit while building P5's eval fixtures: a
+    # settings view added *after* the first `checkbox search` call was
+    # permanently invisible, silently, because the index only rebuilt when
+    # the .sqlite file didn't exist yet at all.
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path / "data"))
+    addons = tmp_path / "addons"
+    addon = addons / "demo"
+    addon.mkdir(parents=True)
+    (addon / "__manifest__.py").write_text("{'name': 'Demo'}\n", encoding="utf-8")
+    # odoo_source resolves via find_addon_roots(), which expects an "addons"
+    # child -- so it points at tmp_path, not tmp_path/addons.
+    profile = Profile(odoo_version="18.0", edition="community", odoo_source=str(tmp_path))
+
+    results = search_mod.search(profile, project_root=REPO_ROOT, query="tracking")
+    assert results == []
+
+    settings = addon / "res_config_settings.py"
+    settings.write_text(
+        "from odoo import fields, models\n"
+        "class ResConfigSettings(models.TransientModel):\n"
+        "    _inherit = 'res.config.settings'\n"
+        "    x_tracking = fields.Boolean('Tracking')\n",
+        encoding="utf-8",
+    )
+    results = search_mod.search(profile, project_root=REPO_ROOT, query="tracking")
+    assert any("x_tracking" in r["title"] for r in results)
 
 
 def test_search_kind_filter_excludes_other_kinds(tmp_path, monkeypatch):
