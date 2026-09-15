@@ -24,7 +24,7 @@ evals/                       ← claude plugin eval suite
 - **Fields:** keep `name` (`checkbox`), `displayName`, `version`, `description`, `author`, `repository`, `license` (`MIT`) and `keywords`.
 - **Versioning:** bump `version` on every user-visible change.
 - **Evals path:** only add `experimental.evals` if the suite moves away from `evals/`.
-- **Validation:** run `claude plugin validate . --strict` from this directory. It must exit 0 with no warnings.
+- **Validation:** run `claude plugin validate .` from this directory; it must exit 0. Don't add `--strict`: it turns the "CLAUDE.md at the plugin root isn't loaded for installed users" warning (line 3 above) into a failure, and that warning is accepted by design, not a defect to fix. Verified 2026-09-15: without `--strict`, `claude plugin validate` exits 0 with that warning still printed; `--strict` alone makes it exit 1.
 
 ## hooks/hooks.json
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "checkbox-odoo",
+  "description": "There's a checkbox for that. A fit-gap gate for Odoo coding agents: standard, then configuration, then no-code, then an existing module, then code.",
+  "owner": {
+    "name": "Tianay Razakamanana"
+  },
+  "plugins": [
+    {
+      "name": "checkbox",
+      "source": "./plugins/checkbox",
+      "description": "Forces an Odoo fit-gap ladder before writing code: evidence-grounded, version/edition/hosting-aware, decision cards, blast-radius risk tiers.",
+      "category": "productivity"
+    }
+  ]
+}

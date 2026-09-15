@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+build/
+dist/
+
+# checkbox runtime state (per-project, never committed from this repo itself)
+.checkbox/local.json
+.checkbox/.session/
+
+# eval / test output
+evals/results/
+.pytest_cache/
+.ruff_cache/
+
+# scratch Odoo source clones (see docs/notes/ for how these are fetched)
+.odoo-src/

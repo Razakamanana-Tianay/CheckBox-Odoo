@@ -63,7 +63,7 @@ python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
 ruff check . && ruff format --check .
 pytest -q
 python3 scripts/check_rule_copies.py
-claude plugin validate plugins/checkbox --strict
+claude plugin validate plugins/checkbox   # no --strict: the plugin-root CLAUDE.md warning is accepted by design, see its own header
 claude plugin validate . --strict
 
 # core CLI (works without Claude Code)

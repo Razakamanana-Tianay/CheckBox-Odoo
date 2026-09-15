@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""checkbox CLI launcher.
+
+Adds ../lib to sys.path so `checkbox` imports without an install step --
+the plugin's core is stdlib-only and self-contained (see non-negotiable #1
+in the repo's CLAUDE.md), so a user installing this plugin never runs pip.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_LIB = Path(__file__).resolve().parent.parent / "lib"
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+
+from checkbox.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())

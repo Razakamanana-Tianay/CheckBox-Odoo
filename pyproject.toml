@@ -1,0 +1,32 @@
+[project]
+name = "checkbox-odoo"
+version = "0.1.0"
+description = "Dev tooling for the checkbox Claude Code plugin. The plugin's own core (plugins/checkbox/lib/checkbox) stays stdlib-only at runtime; this file exists only to run it under pytest/ruff during development."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "plugins/checkbox/lib" }
+packages = ["checkbox", "checkbox.hooks", "checkbox.risk", "checkbox.knowledge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["odoo_src: needs a real Odoo checkout via $ODOO17_SRC/$ODOO18_SRC/$ODOO19_SRC"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+# Stub fixtures are literal mimics of real Odoo source files (single-quoted,
+# Odoo's own style) -- ruff reformatting them to double quotes would break
+# the fidelity the header comments promise. Never auto-format or lint them.
+extend-exclude = ["tests/fixtures/stubs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
