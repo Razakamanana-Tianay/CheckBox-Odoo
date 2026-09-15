@@ -39,18 +39,18 @@ def _maybe_strict(monkeypatch):
 
 
 def test_pre_edit_denies_strict_without_card(capsys, monkeypatch):
+    # PROJECT_STRICT's profile.json already has mode: strict -- no need to
+    # mutate a committed fixture at test time (that risked leaving a stray
+    # local.json in PROJECT_18CE behind on a failure, silently flipping
+    # every other test in this module from full to strict).
     _maybe_strict(monkeypatch)
-    try:
-        Path(PROJECT_18CE / ".checkbox" / "local.json").write_text(
-            '{"mode": "strict"}\n', encoding="utf-8"
-        )
-        pre_edit._run(dict(_PAYLOAD))
-        out = capsys.readouterr().out
-        payload = json.loads(out)
-    finally:
-        (PROJECT_18CE / ".checkbox" / "local.json").unlink(missing_ok=True)
-    assert payload["hookSpecificOutput"]["permissionDecision"] == "deny"
-    reason = payload["hookSpecificOutput"]["permissionDecisionReason"]
+    payload = dict(_PAYLOAD)
+    payload["cwd"] = str(PROJECT_STRICT)
+    pre_edit._run(payload)
+    out = capsys.readouterr().out
+    result = json.loads(out)
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+    reason = result["hookSpecificOutput"]["permissionDecisionReason"]
     assert "'po_approve'" in reason
     assert "approve" in reason
 
