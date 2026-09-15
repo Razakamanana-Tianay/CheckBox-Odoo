@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: serial-tracking
+description: >
+  Rung 3 trap: group_stock_production_lot ("Lots & Serial Numbers")
+  already covers this on 17.0 CE, confirmed against real source
+  (docs/ARCHITECTURE.md §11.3).
+expected_outcome: "verdict: config, zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

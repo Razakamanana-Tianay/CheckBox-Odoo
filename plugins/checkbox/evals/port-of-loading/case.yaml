@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: port-of-loading
+description: >
+  Not a trap: "Port of Loading" is not a real Odoo field or setting on
+  sale.order, confirmed by its absence from the stub's search index. This
+  is a genuine rung-6 case -- the expected tier (green) is a claim about
+  checkbox's own classifier, verified by
+  tests/fixtures/diffs/port_of_loading_{field.py,view.xml} +
+  tests/risk/test_classify.py (docs/ARCHITECTURE.md §11.3), not by Odoo
+  source, since it's checkbox's own policy that a new field + view
+  inheritance is green.
+expected_outcome: "verdict: code, tier: green, extension point = view inheritance + new field"
+context:
+  scaffold_script: scaffold.sh

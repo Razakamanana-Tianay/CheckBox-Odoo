@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: so-line-margin
+description: >
+  Rung 5 trap: sale_margin is a separate installable Odoo app (own
+  manifest, depends: [sale_management]), not standard-installed. Verdict
+  should be `module` per §4.1's rung table (docs/ARCHITECTURE.md §11.3
+  corrected this from an earlier "standard" prose gist -- allowed set
+  keeps both so the case isn't penalized for the doc's original wording).
+expected_outcome: "verdict: module (or standard), zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

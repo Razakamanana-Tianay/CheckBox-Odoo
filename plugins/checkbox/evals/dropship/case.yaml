@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: dropship
+description: >
+  Trap: module_stock_dropshipping is a module_* Boolean on
+  res.config.settings (docs/ARCHITECTURE.md §11.3), structurally identical
+  to po_order_approval -- toggled from Settings, not written as code, even
+  though it installs an addon under the hood. Allowed set {config, module}.
+expected_outcome: "verdict: config or module, zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

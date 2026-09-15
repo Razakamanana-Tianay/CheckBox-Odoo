@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: quality-check-ee
+description: >
+  Same prompt as quality-check-ce, opposite edition. Enterprise source is
+  unavailable to this project (private repo, no license) -- graded only on
+  what docs/ARCHITECTURE.md §11.3 could actually confirm: the Quality app
+  is real and Enterprise-only (structurally confirmed absent from CE via
+  the GitHub API), and QCPs "prompt" users to complete checks during
+  transfer processing (official docs). The exact blocking mechanism is
+  TODO(verify) -- not graded. This case only asserts the negative: not a
+  code verdict, no addon writes.
+expected_outcome: "verdict: standard, config, or nocode (not code); zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

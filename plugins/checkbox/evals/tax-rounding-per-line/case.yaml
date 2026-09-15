@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tax-rounding-per-line
+description: >
+  Rung 3 trap: res.company's tax_calculation_rounding_method (default
+  round_per_line) already covers this on 17.0 CE, confirmed against real
+  source (docs/ARCHITECTURE.md §11.3). "Override tax computation" is
+  deliberately worded to tempt a code override of account.tax's
+  computation methods.
+expected_outcome: "verdict: config, zero writes under addons/"
+context:
+  scaffold_script: scaffold.sh

@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: bill-ref-required
+description: >
+  No standard/config path exists (no ref-requirement field found in the
+  stub index). §4.1 rung 4's own text: "Python inside a server action is
+  still code: it gets a tier" -- so nocode or code, tier: red either way,
+  since the only real extension point is account.move.action_post/_post
+  (§4.3 #5, red by definition). Confirmed against real 17.0 source and
+  tests/fixtures/diffs/bill_ref_required_override.py +
+  tests/risk/test_classify.py::test_bill_ref_required_override_is_red
+  (docs/ARCHITECTURE.md §11.3).
+expected_outcome: "verdict: nocode or code, tier: red"
+context:
+  scaffold_script: scaffold.sh
