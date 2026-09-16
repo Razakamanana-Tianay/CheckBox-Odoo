@@ -26,20 +26,27 @@ Host conventions verified 2026-09-15:
   ladder.md is ~2,000 chars, no risk of hitting it).
 - GitHub Copilot: `.github/copilot-instructions.md`, plain markdown, no
   frontmatter (docs.github.com/en/copilot/how-tos/configure-custom-instructions).
-- OpenCode: reads AGENTS.md automatically; no separate rule file needed for
-  the instruction-tier scope this project targets (§9: "OpenCode (AGENTS.md
-  + CLI)", not Ponytail's fuller injected-plugin treatment).
+- OpenCode: reads AGENTS.md automatically; since P9 (v1.1.0) it also gets a
+  ready-to-install npm plugin package under `opencode/` -- generated here too,
+  so it never drifts: `package.json`, `src/index.ts` (always-on ladder
+  injection + a `checkbox` tool shelling to a bundled stdlib-only CLI),
+  `src/ladder.ts` (the neutral ladder as a TS string) and `vendor/` (a verbatim
+  copy of `bin/checkbox`, `lib/checkbox/*.py` and `rules/`, run with plain
+  `python3`, no install step). The plugin's honesty limit stands: it reminds
+  and classifies, it cannot deny edits like the Claude Code guard does.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RULES_DIR = REPO_ROOT / "plugins" / "checkbox" / "rules"
 PLUGIN_JSON = REPO_ROOT / "plugins" / "checkbox" / ".claude-plugin" / "plugin.json"
+PLUGIN_DIR = REPO_ROOT / "plugins" / "checkbox"
 
 NEUTRAL_PLACEHOLDERS = {
     "profile_line": (
@@ -169,14 +176,212 @@ def render_opencode_readme() -> str:
 OpenCode reads `AGENTS.md` from the repository root automatically -- copy
 `adapters/AGENTS.md` (this directory's sibling) to your project's own
 `AGENTS.md`, or merge its "Odoo change policy (checkbox)" section into an
-existing one.
+existing one. `checkbox setup opencode` does that merge for you.
 
-`checkbox`'s CLI (`checkbox search`, `checkbox classify`, `checkbox card
-next-id`/`validate`) works from any shell OpenCode's agent can invoke; see
-`AGENTS.md`'s own CLI section for the commands.
+Or run the plugin, which injects the ladder into every session, registers a
+`checkbox` tool that shells to the bundled Python CLI, and tags written
+files with their blast-radius tier:
+
+```bash
+opencode2 plugin add checkbox-odoo          # once published, or:
+# "plugin": ["file:/abs/path/adapters/opencode"]  in opencode.json
+```
+
+The plugin bundles its own copy of the stdlib-only `checkbox` core under
+`vendor/` and runs it with plain `python3` -- no install step, no venv.
+It renders the ladder with neutral placeholders; run `checkbox profile show`
+in the project to see its real version and edition.
+
+`checkbox`'s CLI (`checkbox profile show`, `checkbox search`, `checkbox
+classify`, `checkbox card next-id`/`validate`, `checkbox mode show`) works
+from any shell OpenCode's agent can invoke.
 
 {NO_GUARD_NOTE}
 """
+
+
+def _ts_string_array(lines: list[str]) -> str:
+    inner = "\n".join(f"  {json.dumps(line, ensure_ascii=False)}," for line in lines)
+    return f"[\n{inner}\n].join('\\n')"
+
+
+def render_opencode_ladder_ts() -> str:
+    """The neutral-rendered full ladder as a TS string array.
+
+    Every adapter must carry the ladder text. For the plugin this is always-on
+    system context (the opencode analog of SessionStart), so it renders the
+    same neutral placeholders as AGENTS.md -- never a baked-in profile. The
+    array-of-JSON-lines form keeps the TS a valid compile no matter what
+    ladder.md contains (backticks, braces, ${}).
+    """
+    header = _generation_header("//")
+    ladder = _ts_string_array(_render_ladder().splitlines())
+    return (
+        f"{header}\n"
+        "\n"
+        "// The full ladder text (rules/ladder.md) with neutral placeholders --\n"
+        "// the same text adapters/AGENTS.md carries, in a form the plugin can\n"
+        "// push into the system prompt.\n"
+        f"export const CHECKBOX_LADDER = {ladder};\n"
+    )
+
+
+def render_opencode_package_json() -> str:
+    return (
+        json.dumps(
+            {
+                "name": "checkbox-odoo",
+                "version": _plugin_version(),
+                "description": (
+                    "Odoo fit-gap change policy for OpenCode: always-on ladder "
+                    "reminder plus a checkbox tool (search/classify/card) backed "
+                    "by a bundled stdlib-only Python CLI. The plugin reminds and "
+                    "classifies; it cannot deny edits."
+                ),
+                "type": "module",
+                "main": "src/index.ts",
+                "files": ["src", "vendor", "AGENTS.md", "README.md"],
+                "keywords": ["opencode", "odoo", "plugin", "fit-gap"],
+                "license": "MIT",
+                "dependencies": {"@opencode-ai/plugin": "^1.18.31"},
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+
+def render_opencode_plugin_ts() -> str:
+    """The plugin entrypoint (adapters/opencode/src/index.ts).
+
+    Verified against the published @opencode-ai/plugin surface (registry
+    npmjs.com/package/@opencode-ai/plugin, v1.18.31, grabbed 2026-09-15):
+    `Plugin = (input, options?) => Promise<Hooks>` with input.directory, the
+    `tool()` helper (zod `schema` behind it), the `experimental.chat.system.
+    transform` hook (output.system: string[]) and `tool.execute.after`
+    (output.title). Everything else -- argv parsing, JSON, spawn -- uses the
+    kernel or the bundled Python, so no runtime deps beyond @opencode-ai/plugin.
+    """
+    header = _generation_header("//")
+    return (
+        f"{header}\n"
+        "\n"
+        'import type { Plugin } from "@opencode-ai/plugin"\n'
+        'import { tool } from "@opencode-ai/plugin"\n'
+        'import { CHECKBOX_LADDER } from "./ladder.js"\n'
+        "\n"
+        'const LADDER_MARKER = "Odoo change policy (checkbox)"\n'
+        'const VENDOR_CLI = new URL("../vendor/bin/checkbox", import.meta.url).pathname\n'
+        "\n"
+        "async function readAll(stream: ReadableStream): Promise<string> {\n"
+        "  return await new Response(stream).text()\n"
+        "}\n"
+        "\n"
+        "async function runCli(args: string[], cwd: string): Promise<string> {\n"
+        '  const python = process.env.CHECKBOX_PYTHON ?? "python3"\n'
+        "  // opencode embeds Bun; spawn deliberately avoids starting a shell.\n"
+        "  const bun = (globalThis as any).Bun\n"
+        "  const proc = bun.spawn({\n"
+        "    cmd: [python, VENDOR_CLI, ...args],\n"
+        "    cwd,\n"
+        '    stdout: "pipe",\n'
+        '    stderr: "pipe",\n'
+        "  })\n"
+        "  const [out, err] = await Promise.all([readAll(proc.stdout), readAll(proc.stderr)])\n"
+        "  const code = (await proc.exited) as number\n"
+        "  const text = (out || err).trim()\n"
+        "  return code === 0 ? text : `checkbox exited ${code}: ${text}`\n"
+        "}\n"
+        "\n"
+        "async function classifyTier(file: string, cwd: string): Promise<string | null> {\n"
+        "  try {\n"
+        '    const out = await runCli(["classify", "--json", file], cwd)\n'
+        "    const parsed = JSON.parse(out)\n"
+        '    return typeof parsed.tier === "string" ? parsed.tier : null\n'
+        "  } catch {\n"
+        "    return null\n"
+        "  }\n"
+        "}\n"
+        "\n"
+        'const COMMANDS = ["profile", "search", "classify", "card", "mode", "ladder"] as const\n'
+        "\n"
+        "export const CheckboxPlugin: Plugin = async ({ directory }) => ({\n"
+        '  "experimental.chat.system.transform": async (input, output) => {\n'
+        "    if (!output.system.some((block) => block.includes(LADDER_MARKER))) {\n"
+        "      output.system.push(CHECKBOX_LADDER)\n"
+        "    }\n"
+        "  },\n"
+        "  tool: {\n"
+        "    checkbox: tool({\n"
+        "      description:\n"
+        '        "Run the checkbox Odoo change-policy CLI (bundled, stdlib-only Python). "\n'
+        '        "Call it with a checkbox subcommand plus its CLI arguments, passed "\n'
+        '        "verbatim in the args array -- e.g. command = search, args = [purchase "\n'
+        '        "approval]. Commands: profile show, profile detect, search <query>, "\n'
+        '        "classify <file>, card validate <file>, mode show, ladder render. Add "\n'
+        '        "--json for machine-readable output.",\n'
+        "      args: {\n"
+        '        command: tool.schema.enum(COMMANDS).describe("checkbox subcommand"),\n'
+        "        args: tool.schema\n"
+        "          .array(tool.schema.string())\n"
+        "          .optional()\n"
+        '          .describe("arguments for the subcommand; [] when none"),\n'
+        "      },\n"
+        "      async execute(input, ctx) {\n"
+        "        return await runCli([input.command, ...(input.args ?? [])], ctx.directory)\n"
+        "      },\n"
+        "    }),\n"
+        "  },\n"
+        '  "tool.execute.after": async (input, output) => {\n'
+        '    if (input.tool !== "write" && input.tool !== "edit") return\n'
+        "    const file =\n"
+        "      input.args?.filePath ?? input.args?.path ?? input.args?.file\n"
+        '    if (typeof file !== "string") return\n'
+        "    const tier = await classifyTier(file, directory)\n"
+        "    if (tier) output.title = `checkbox: ${tier}`\n"
+        "  },\n"
+        "})\n"
+        "\n"
+        "export default CheckboxPlugin\n"
+    )
+
+
+def _vendor_core() -> dict[str, str]:
+    """Verbatim copy of the plugin's stdlib-only runtime into opencode/vendor/.
+
+    `bin/checkbox` adds `../lib` to sys.path and `lib/checkbox/...` resolves
+    `rules/` relative to its own file, so the copy works with no edits --
+    this function must keep it verbatim (tests assert identity). Docs, skill
+    and hook config are not needed at runtime and are not vendored.
+    """
+    files: dict[str, str] = {}
+    files["opencode/vendor/bin/checkbox"] = (PLUGIN_DIR / "bin" / "checkbox").read_text(
+        encoding="utf-8"
+    )
+    lib = PLUGIN_DIR / "lib" / "checkbox"
+    for path in sorted(lib.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        rel = path.relative_to(lib)
+        files[f"opencode/vendor/lib/checkbox/{rel.as_posix()}"] = path.read_text(encoding="utf-8")
+    rules = PLUGIN_DIR / "rules"
+    for path in sorted(rules.rglob("*")):
+        if path.is_file():
+            rel = path.relative_to(rules)
+            files[f"opencode/vendor/rules/{rel.as_posix()}"] = path.read_text(encoding="utf-8")
+    return files
+
+
+def build_opencode_package() -> dict[str, str]:
+    """Every file that makes adapters/opencode/ a publishable npm plugin."""
+    package = {
+        "opencode/package.json": render_opencode_package_json(),
+        "opencode/src/index.ts": render_opencode_plugin_ts(),
+        "opencode/src/ladder.ts": render_opencode_ladder_ts(),
+        "opencode/AGENTS.md": render_agents_md(),
+    }
+    package.update(_vendor_core())
+    return package
 
 
 OUTPUTS: dict[str, tuple[str, object]] = {
@@ -197,8 +402,11 @@ OUTPUTS: dict[str, tuple[str, object]] = {
 def build(output_dir: Path) -> dict[str, str]:
     """Render every adapter. Returns {relative_path: content} without writing
     anything -- callers decide whether to write to disk (build) or diff
-    in-memory (check_rule_copies.py)."""
-    return {rel_path: renderer() for rel_path, (_label, renderer) in OUTPUTS.items()}
+    in-memory (check_rule_copies.py). The opencode npm plugin package is part
+    of the output set like any other adapter."""
+    rendered = {rel_path: renderer() for rel_path, (_label, renderer) in OUTPUTS.items()}
+    rendered.update(build_opencode_package())
+    return rendered
 
 
 def main(argv: list[str] | None = None) -> int:

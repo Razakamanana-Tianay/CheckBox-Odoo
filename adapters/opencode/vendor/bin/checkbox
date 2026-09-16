@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""checkbox CLI launcher.
+
+Adds ../lib to sys.path so `checkbox` imports without an install step --
+the plugin's core is stdlib-only and self-contained (see non-negotiable #1
+in the repo's CLAUDE.md), so a user installing this plugin never runs pip.
+
+Hook fast path: `checkbox hook <event>` dispatches straight to that event's
+module instead of importing checkbox.cli, which pulls in approvals/card/
+knowledge/risk at module load (see lib/checkbox/CLAUDE.md: "this package is
+imported by hooks, so import time matters"). Every hooks.json entry runs
+through this file once per turn, so skipping that chain is a real saving,
+not a hypothetical one. Any other invocation (or an unknown event, so
+argparse prints its usual error) falls through to the full CLI unchanged.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_LIB = Path(__file__).resolve().parent.parent / "lib"
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+
+
+def _run() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "hook":
+        from checkbox.hooks import HOOK_MAIN
+
+        event = sys.argv[2]
+        if event in HOOK_MAIN:
+            import importlib
+
+            return int(importlib.import_module(HOOK_MAIN[event]).main())
+
+    from checkbox.cli import main
+
+    return main()
+
+
+if __name__ == "__main__":
+    raise SystemExit(_run())

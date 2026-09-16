@@ -1,0 +1,30 @@
+{
+  "version": "19.0",
+  "extends": "common",
+  "_verified": "checkbox rules verify --version 19.0 --odoo-src .odoo-src/19.0, 2026-09-15, against a sparse shallow clone of github.com/odoo/odoo@19.0 (addons/account, addons/purchase, addons/stock) -- same three models as 18.0, no renames found for this pass",
+  "models": {
+    "account.move": {
+      "tier": "red",
+      "methods": {
+        "_post": "red",
+        "action_post": "red",
+        "button_draft": "red"
+      },
+      "source": "addons/account/models/account_move.py"
+    },
+    "stock.move": {
+      "tier": "red",
+      "methods": {
+        "_action_done": "red"
+      },
+      "source": "addons/stock/models/stock_move.py"
+    },
+    "stock.picking": {
+      "tier": "amber",
+      "methods": {
+        "button_validate": "red"
+      },
+      "source": "addons/stock/models/stock_picking.py"
+    }
+  }
+}

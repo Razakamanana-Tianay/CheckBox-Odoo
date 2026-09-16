@@ -1,0 +1,23 @@
+{
+  "name": "checkbox-odoo",
+  "version": "1.1.0",
+  "description": "Odoo fit-gap change policy for OpenCode: always-on ladder reminder plus a checkbox tool (search/classify/card) backed by a bundled stdlib-only Python CLI. The plugin reminds and classifies; it cannot deny edits.",
+  "type": "module",
+  "main": "src/index.ts",
+  "files": [
+    "src",
+    "vendor",
+    "AGENTS.md",
+    "README.md"
+  ],
+  "keywords": [
+    "opencode",
+    "odoo",
+    "plugin",
+    "fit-gap"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.18.31"
+  }
+}
