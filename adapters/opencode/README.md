@@ -17,9 +17,10 @@ opencode2 plugin add checkbox-odoo          # once published, or:
 ```
 
 The plugin bundles its own copy of the stdlib-only `checkbox` core under
-`vendor/` and runs it with plain `python3` -- no install step, no venv.
-It renders the ladder with neutral placeholders; run `checkbox profile show`
-in the project to see its real version and edition.
+`vendor/` and runs it with whichever real `python3`/`py`/`python` it finds
+on PATH (skipping the Windows Store's alias stub) -- no install step, no
+venv. It renders the ladder with neutral placeholders; run `checkbox
+profile show` in the project to see its real version and edition.
 
 `checkbox`'s CLI (`checkbox profile show`, `checkbox search`, `checkbox
 classify`, `checkbox card next-id`/`validate`, `checkbox mode show`) works

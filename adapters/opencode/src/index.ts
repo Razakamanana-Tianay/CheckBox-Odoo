@@ -2,21 +2,55 @@
 
 import type { Plugin } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
+import { existsSync } from "node:fs"
 import { CHECKBOX_LADDER } from "./ladder.js"
 
 const LADDER_MARKER = "Odoo change policy (checkbox)"
 const VENDOR_CLI = new URL("../vendor/bin/checkbox", import.meta.url).pathname
+
+// Finds a real Python 3, skipping the Microsoft Store's placeholder
+// python3/python alias stubs on Windows: real executable files (not a
+// missing command), always under a path containing "WindowsApps", the
+// one stable marker for them. Falls through py -3 (the Windows Python
+// Launcher, immune to the Store alias, shipped by the official
+// python.org installer), then bare python. Mirrors bin/checkbox-hook's
+// logic for Claude Code hooks (docs/ARCHITECTURE.md D12) -- this plugin
+// doesn't go through hooks.json at all, so it needs its own copy.
+function resolveOnPath(name: string): string | null {
+  const dirs = (process.env.PATH ?? "").split(process.platform === "win32" ? ";" : ":")
+  const exts = process.platform === "win32" ? ["", ".exe"] : [""]
+  for (const dir of dirs) {
+    if (!dir || dir.includes("WindowsApps")) continue
+    for (const ext of exts) {
+      const candidate = `${dir}/${name}${ext}`
+      if (existsSync(candidate)) return candidate
+    }
+  }
+  return null
+}
+
+function findPython(): { cmd: string; args: string[] } {
+  const override = process.env.CHECKBOX_PYTHON
+  if (override) return { cmd: override, args: [] }
+  const python3 = resolveOnPath("python3")
+  if (python3) return { cmd: python3, args: [] }
+  const py = resolveOnPath("py")
+  if (py) return { cmd: py, args: ["-3"] }
+  const python = resolveOnPath("python")
+  if (python) return { cmd: python, args: [] }
+  return { cmd: "python3", args: [] }
+}
 
 async function readAll(stream: ReadableStream): Promise<string> {
   return await new Response(stream).text()
 }
 
 async function runCli(args: string[], cwd: string): Promise<string> {
-  const python = process.env.CHECKBOX_PYTHON ?? "python3"
+  const { cmd, args: pyArgs } = findPython()
   // opencode embeds Bun; spawn deliberately avoids starting a shell.
   const bun = (globalThis as any).Bun
   const proc = bun.spawn({
-    cmd: [python, VENDOR_CLI, ...args],
+    cmd: [cmd, ...pyArgs, VENDOR_CLI, ...args],
     cwd,
     stdout: "pipe",
     stderr: "pipe",

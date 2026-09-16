@@ -195,9 +195,10 @@ def test_opencode_readme_covers_plugin_and_setup_install_paths():
 
 
 def test_vendor_core_matches_plugin_tree_verbatim():
-    # The npm plugin runs the bundled CLI with plain `python3`; if the copy
-    # ever drifted from plugins/checkbox/ the package would ship broken code
-    # silently. Each vendored file must be byte-identical to its source.
+    # The npm plugin runs the bundled CLI through whichever real python3/py/
+    # python it finds on PATH; if the copy ever drifted from plugins/checkbox/
+    # the package would ship broken code silently. Each vendored file must be
+    # byte-identical to its source.
     package = build_adapters.build_opencode_package()
     vendored = [rel for rel in package if rel.startswith("opencode/vendor/")]
     assert vendored, "no vendored files produced"

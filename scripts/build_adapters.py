@@ -31,9 +31,11 @@ Host conventions verified 2026-09-15:
   so it never drifts: `package.json`, `src/index.ts` (always-on ladder
   injection + a `checkbox` tool shelling to a bundled stdlib-only CLI),
   `src/ladder.ts` (the neutral ladder as a TS string) and `vendor/` (a verbatim
-  copy of `bin/checkbox`, `lib/checkbox/*.py` and `rules/`, run with plain
-  `python3`, no install step). The plugin's honesty limit stands: it reminds
-  and classifies, it cannot deny edits like the Claude Code guard does.
+  copy of `bin/checkbox`, `lib/checkbox/*.py` and `rules/`, run with whichever
+  real `python3`/`py`/`python` it finds on PATH -- v1.1.1 skips the Windows
+  Store's alias stub the same way `bin/checkbox-hook` does for Claude Code
+  hooks, D12 -- no install step). The plugin's honesty limit stands: it
+  reminds and classifies, it cannot deny edits like the Claude Code guard does.
 """
 
 from __future__ import annotations
@@ -186,9 +188,10 @@ opencode2 plugin add checkbox-odoo          # once published, or:
 ```
 
 The plugin bundles its own copy of the stdlib-only `checkbox` core under
-`vendor/` and runs it with plain `python3` -- no install step, no venv.
-It renders the ladder with neutral placeholders; run `checkbox profile show`
-in the project to see its real version and edition.
+`vendor/` and runs it with whichever real `python3`/`py`/`python` it finds
+on PATH (skipping the Windows Store's alias stub) -- no install step, no
+venv. It renders the ladder with neutral placeholders; run `checkbox
+profile show` in the project to see its real version and edition.
 
 `checkbox`'s CLI (`checkbox profile show`, `checkbox search`, `checkbox
 classify`, `checkbox card next-id`/`validate`, `checkbox mode show`) works
@@ -266,21 +269,55 @@ def render_opencode_plugin_ts() -> str:
         "\n"
         'import type { Plugin } from "@opencode-ai/plugin"\n'
         'import { tool } from "@opencode-ai/plugin"\n'
+        'import { existsSync } from "node:fs"\n'
         'import { CHECKBOX_LADDER } from "./ladder.js"\n'
         "\n"
         'const LADDER_MARKER = "Odoo change policy (checkbox)"\n'
         'const VENDOR_CLI = new URL("../vendor/bin/checkbox", import.meta.url).pathname\n'
+        "\n"
+        "// Finds a real Python 3, skipping the Microsoft Store's placeholder\n"
+        "// python3/python alias stubs on Windows: real executable files (not a\n"
+        '// missing command), always under a path containing "WindowsApps", the\n'
+        "// one stable marker for them. Falls through py -3 (the Windows Python\n"
+        "// Launcher, immune to the Store alias, shipped by the official\n"
+        "// python.org installer), then bare python. Mirrors bin/checkbox-hook's\n"
+        "// logic for Claude Code hooks (docs/ARCHITECTURE.md D12) -- this plugin\n"
+        "// doesn't go through hooks.json at all, so it needs its own copy.\n"
+        "function resolveOnPath(name: string): string | null {\n"
+        '  const dirs = (process.env.PATH ?? "").split(process.platform === "win32" ? ";" : ":")\n'
+        '  const exts = process.platform === "win32" ? ["", ".exe"] : [""]\n'
+        "  for (const dir of dirs) {\n"
+        '    if (!dir || dir.includes("WindowsApps")) continue\n'
+        "    for (const ext of exts) {\n"
+        "      const candidate = `${dir}/${name}${ext}`\n"
+        "      if (existsSync(candidate)) return candidate\n"
+        "    }\n"
+        "  }\n"
+        "  return null\n"
+        "}\n"
+        "\n"
+        "function findPython(): { cmd: string; args: string[] } {\n"
+        "  const override = process.env.CHECKBOX_PYTHON\n"
+        "  if (override) return { cmd: override, args: [] }\n"
+        '  const python3 = resolveOnPath("python3")\n'
+        "  if (python3) return { cmd: python3, args: [] }\n"
+        '  const py = resolveOnPath("py")\n'
+        '  if (py) return { cmd: py, args: ["-3"] }\n'
+        '  const python = resolveOnPath("python")\n'
+        "  if (python) return { cmd: python, args: [] }\n"
+        '  return { cmd: "python3", args: [] }\n'
+        "}\n"
         "\n"
         "async function readAll(stream: ReadableStream): Promise<string> {\n"
         "  return await new Response(stream).text()\n"
         "}\n"
         "\n"
         "async function runCli(args: string[], cwd: string): Promise<string> {\n"
-        '  const python = process.env.CHECKBOX_PYTHON ?? "python3"\n'
+        "  const { cmd, args: pyArgs } = findPython()\n"
         "  // opencode embeds Bun; spawn deliberately avoids starting a shell.\n"
         "  const bun = (globalThis as any).Bun\n"
         "  const proc = bun.spawn({\n"
-        "    cmd: [python, VENDOR_CLI, ...args],\n"
+        "    cmd: [cmd, ...pyArgs, VENDOR_CLI, ...args],\n"
         "    cwd,\n"
         '    stdout: "pipe",\n'
         '    stderr: "pipe",\n'
