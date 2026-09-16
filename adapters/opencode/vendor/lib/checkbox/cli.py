@@ -182,9 +182,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 
 def cmd_rules_verify(args: argparse.Namespace) -> int:
-    from pathlib import Path as _P
-
-    odoo_src = _P(args.odoo_src)
+    odoo_src = Path(args.odoo_src)
     if not odoo_src.is_dir():
         print(f"error: odoo source dir not found: {odoo_src}", file=sys.stderr)
         return 1
@@ -204,9 +202,7 @@ def cmd_rules_verify(args: argparse.Namespace) -> int:
 
 
 def cmd_classify(args: argparse.Namespace) -> int:
-    from pathlib import Path as _P
-
-    path = _P(args.path)
+    path = Path(args.path)
     if not path.is_file():
         print(f"error: file not found: {path}", file=sys.stderr)
         return 1
@@ -216,7 +212,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
         version = getattr(prof, "odoo_version", None)
     if not version and args.root:
         try:
-            prof = profile_mod.load(_P(args.root))
+            prof = profile_mod.load(Path(args.root))
             version = getattr(prof, "odoo_version", None)
         except FileNotFoundError:
             pass
@@ -243,23 +239,16 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(report, indent=2))
         return 0
+    wording = {
+        "write": ("write", "written"),
+        "overwrite": ("update", "updated"),
+        "append": ("merge into", "merged into existing file"),
+        "skip": ("skip (already present)", "already present"),
+    }
     for entry in report["files"]:
-        if args.dry_run:
-            infinitive = {
-                "write": "write",
-                "overwrite": "update",
-                "append": "merge into",
-                "skip": "skip (already present)",
-            }[entry["action"]]
-            print(f"{entry['target']}: would {infinitive} ({entry['sha256'][:12]})")
-            continue
-        label = {
-            "write": "written",
-            "overwrite": "updated",
-            "append": "merged into existing file",
-            "skip": "already present",
-        }[entry["action"]]
-        print(f"{entry['target']}: {label} ({entry['sha256'][:12]})")
+        infinitive, done = wording[entry["action"]]
+        verb = f"would {infinitive}" if args.dry_run else done
+        print(f"{entry['target']}: {verb} ({entry['sha256'][:12]})")
     return 0
 
 
@@ -347,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode_show.set_defaults(func=cmd_mode_show)
 
     mode_set = mode_sub.add_parser("set", help="write .checkbox/local.json's mode override")
-    mode_set.add_argument("level", choices=("off", "lite", "full", "strict"))
+    mode_set.add_argument("level", choices=profile_mod.VALID_MODES)
     mode_set.add_argument("--root", default=None)
     mode_set.add_argument("--json", action="store_true")
     mode_set.set_defaults(func=cmd_mode_set)

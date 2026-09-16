@@ -39,12 +39,6 @@ def emit_context(text: str) -> None:
         sys.stdout.write(text)
 
 
-def emit_subagent_context(event: str, text: str) -> None:
-    """SubagentStart: the hookSpecificOutput JSON form is required, or the
-    context is silently dropped (verified against the hooks reference)."""
-    emit_hook_context(event, text)
-
-
 def emit_hook_context(event: str, text: str) -> None:
     """Generic hookSpecificOutput context injection for events whose plain
     stdout is *not* added to the transcript (SubagentStart, PreToolUse,

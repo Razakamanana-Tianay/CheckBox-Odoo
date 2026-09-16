@@ -14,7 +14,7 @@ import check_rule_copies  # noqa: E402
 
 
 def _rendered() -> dict[str, str]:
-    return build_adapters.build(REPO_ROOT / "adapters")
+    return build_adapters.build()
 
 
 def _doc_outputs() -> dict[str, str]:
@@ -22,7 +22,7 @@ def _doc_outputs() -> dict[str, str]:
     # README). The npm plugin package carries ladder text too, but its
     # machine files (package.json, TS sources, vendored Python/rules) are
     # exempt from the placeholder/header/guard-note invariants below.
-    return {rel: renderer() for rel, (_label, renderer) in build_adapters.OUTPUTS.items()}
+    return {rel: renderer() for rel, renderer in build_adapters.OUTPUTS.items()}
 
 
 def test_build_produces_every_declared_output():

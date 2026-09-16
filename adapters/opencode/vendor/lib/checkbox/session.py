@@ -17,13 +17,10 @@ from typing import Any
 def _default() -> dict[str, Any]:
     # Fresh lists/dicts every call: `load()` hands callers a copy of the
     # defaults, so the nested lists must not be shared module globals, or a
-    # `record_touched_addon(...).append(...)` would leak across sessions:
-    # `dict(_DEFAULT)` shallow-copies, leaving every copy pointing at the
-    # same nested list object.
+    # `record_touched_addon(...).append(...)` would leak across sessions --
+    # a single module-level default dict, shallow-copied per call, would
+    # leave every copy pointing at the same nested list object.
     return {"touched_addons": [], "cards_seen": [], "stop_block_count": 0}
-
-
-_DEFAULT = _default()
 
 
 def _session_path(root: Path, session_id: str) -> Path:

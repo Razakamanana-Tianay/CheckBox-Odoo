@@ -107,14 +107,12 @@ def lint_pii(text: str) -> list[str]:
 def validate(
     card: dict[str, Any],
     profile: Any = None,
-    approvals: dict[str, Any] | None = None,
     raw_text: str = "",
 ) -> list[str]:
     """Return a list of error strings; empty means valid.
 
     *profile* (a checkbox.profile.Profile, optional) is used only to check
-    `addons` against `custom_addons` when the verdict is `code`. *approvals*
-    is accepted for the caller's convenience but not yet used -- approval
+    `addons` against `custom_addons` when the verdict is `code`. Approval
     revalidation (hash-matches-approved-block) belongs to approvals.py, not
     here; this only validates the card's own internal consistency.
     """

@@ -228,16 +228,13 @@ def detect(root: Path) -> Profile:
 
 
 def load(root: Path) -> Profile:
-    path = _profile_path(Path(root))
-    data = json.loads(path.read_text(encoding="utf-8"))
-    known = {f for f in Profile.__dataclass_fields__}
-    return Profile(**{k: v for k, v in data.items() if k in known})
+    return load_file(_profile_path(Path(root)))
 
 
 def load_file(path: Path) -> Profile:
-    """Load a profile from an arbitrary JSON file, not the `.checkbox/profile.json`
-    convention `load()` assumes -- for `checkbox search --profile <file>`,
-    matching the CLI usage documented in the repo's CLAUDE.md."""
+    """Load a profile from an arbitrary JSON file -- `load()`'s
+    `.checkbox/profile.json` convention is one caller of this, and
+    `checkbox search --profile <file>` (repo CLAUDE.md) is another."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     known = {f for f in Profile.__dataclass_fields__}
     return Profile(**{k: v for k, v in data.items() if k in known})

@@ -78,8 +78,6 @@ NO_GUARD_NOTE = (
 
 
 def _plugin_version() -> str:
-    import json
-
     return json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
 
 
@@ -384,27 +382,21 @@ def build_opencode_package() -> dict[str, str]:
     return package
 
 
-OUTPUTS: dict[str, tuple[str, object]] = {
-    "AGENTS.md": ("AGENTS.md", render_agents_md),
-    "cursor/checkbox.mdc": ("Cursor -- copy to .cursor/rules/checkbox.mdc", render_cursor_mdc),
-    "windsurf/checkbox.md": (
-        "Windsurf -- copy to .windsurf/rules/checkbox.md (or .devin/rules/)",
-        render_windsurf_md,
-    ),
-    "copilot/copilot-instructions.md": (
-        "GitHub Copilot -- copy to .github/copilot-instructions.md",
-        render_copilot_instructions,
-    ),
-    "opencode/README.md": ("OpenCode", render_opencode_readme),
+OUTPUTS: dict[str, object] = {
+    "AGENTS.md": render_agents_md,
+    "cursor/checkbox.mdc": render_cursor_mdc,
+    "windsurf/checkbox.md": render_windsurf_md,
+    "copilot/copilot-instructions.md": render_copilot_instructions,
+    "opencode/README.md": render_opencode_readme,
 }
 
 
-def build(output_dir: Path) -> dict[str, str]:
+def build() -> dict[str, str]:
     """Render every adapter. Returns {relative_path: content} without writing
     anything -- callers decide whether to write to disk (build) or diff
     in-memory (check_rule_copies.py). The opencode npm plugin package is part
     of the output set like any other adapter."""
-    rendered = {rel_path: renderer() for rel_path, (_label, renderer) in OUTPUTS.items()}
+    rendered = {rel_path: renderer() for rel_path, renderer in OUTPUTS.items()}
     rendered.update(build_opencode_package())
     return rendered
 
@@ -419,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     output_dir = Path(args.output_dir)
 
-    rendered = build(output_dir)
+    rendered = build()
     for rel_path, content in rendered.items():
         dest = output_dir / rel_path
         dest.parent.mkdir(parents=True, exist_ok=True)

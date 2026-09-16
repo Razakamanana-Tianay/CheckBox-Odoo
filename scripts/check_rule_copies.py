@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {ADAPTERS_DIR} does not exist", file=sys.stderr)
         return 2
 
-    rendered = build_adapters.build(ADAPTERS_DIR)
+    rendered = build_adapters.build()
 
     drifted: list[str] = []
     for rel_path, expected in rendered.items():

@@ -1,4 +1,4 @@
-"""classify(path, profile) -> {tier, reasons}. docs/ARCHITECTURE.md §6.2."""
+"""classify_file(path, version) -> {tier, reasons}. docs/ARCHITECTURE.md §6.2."""
 
 from __future__ import annotations
 
@@ -32,10 +32,3 @@ def classify_file(path: Path, version: str) -> dict[str, Any]:
     else:
         findings = []
     return {"tier": _highest_tier(findings), "reasons": findings}
-
-
-def classify(path: Path, profile: Any) -> dict[str, Any]:
-    """Classify *path* against *profile*'s Odoo version (a
-    checkbox.profile.Profile, or anything with an `odoo_version` attribute)."""
-    version = getattr(profile, "odoo_version", None) or "18.0"
-    return classify_file(path, version)
