@@ -79,6 +79,14 @@ plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_
 plugins/checkbox/bin/checkbox hook subagent-start < tests/fixtures/hooks/subagent_start.json | python3 -m json.tool
 plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
 
+# one-command install for non-Claude hosts (P9): cursor, windsurf, copilot, opencode
+plugins/checkbox/bin/checkbox setup opencode --project . --dry-run
+
+# adapter generation: adapters/ is generated, never hand-edited. build_adapters.py
+# emits the rules files AND the opencode npm plugin incl. a verbatim vendored copy
+# of bin/checkbox + lib/checkbox + rules, so re-run it after any change to those.
+python3 scripts/build_adapters.py
+
 # run the plugin interactively (development)
 claude --plugin-dir plugins/checkbox
 #   after editing hooks/agents/.mcp.json inside a session: /reload-plugins
@@ -130,6 +138,7 @@ claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --n
 - New Odoo facts are verified (source path or doc URL recorded next to the fact).
 - Budgets are respected (the tests in `tests/test_budgets.py` pass).
 - If the ladder text changed, `python3 scripts/build_adapters.py` has been run and the drift check passes.
+- If `plugins/checkbox/rules/`, `plugins/checkbox/bin/checkbox` or any file under `plugins/checkbox/lib/checkbox/` changed, same: the opencode npm plugin vendors a verbatim copy, so `python3 scripts/build_adapters.py` must be run and the drift check must pass.
 - If behaviour visible to the agent changed, the relevant eval cases have been run at least once with `--runs 1`.
 - `docs/ARCHITECTURE.md` has been updated if a decision (§14) or a contract (§5, §6, §8.2) changed.
 

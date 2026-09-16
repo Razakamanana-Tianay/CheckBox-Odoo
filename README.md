@@ -1,8 +1,9 @@
 # checkbox
 
-A Claude Code plugin (plus adapters for OpenCode, Codex, Cursor, Windsurf and
-other agents) that makes an AI coding agent walk an **Odoo fit-gap ladder**
-before it writes any Odoo code:
+A Claude Code plugin (plus installable adapters and a ready-to-install npm
+plugin for OpenCode, Cursor, Windsurf, GitHub Copilot and other agents) that
+makes an AI coding agent walk an **Odoo fit-gap ladder** before it writes any
+Odoo code:
 
 > standard → configure → no-code → existing module → code
 
@@ -28,12 +29,13 @@ Code is the last resort, not the default answer.
 ## Install
 
 ```bash
-# marketplace (plugin lives in this repo)
+# Claude Code: marketplace (plugin lives in this repo)
 claude plugin marketplace add checkbox-odoo
 claude plugin install checkbox-odoo@checkbox
 ```
 
-The plugin's `bin/checkbox` CLI also works standalone, without Claude Code:
+Everything below also works standalone -- the `checkbox` CLI is a single
+stdlib-only Python script, no install step:
 
 ```bash
 plugins/checkbox/bin/checkbox profile detect tests/fixtures/stubs/odoo18-ce --json
@@ -41,8 +43,33 @@ plugins/checkbox/bin/checkbox search "purchase approval" --profile tests/fixture
 plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.py --json
 ```
 
-For non-Claude hosts, a `checkbox-mcp` server exposes `search`, `classify`
-and `card_validate` as MCP tools (see `plugins/checkbox/lib/checkbox/mcp_server.py`).
+**Non-Claude hosts**, one command per host:
+
+```bash
+plugins/checkbox/bin/checkbox setup {opencode,cursor,windsurf,copilot} \
+    --project /path/to/the/odoo/project --dry-run   # preview first
+```
+
+  `checkbox setup` copies the generated rule file into the project (for
+  OpenCode it merges into an existing `AGENTS.md` instead of overwriting it).
+  Cursor reads `.cursor/rules/checkbox.mdc`, Windsurf reads
+  `.windsurf/rules/checkbox.md`, Copilot reads `.github/copilot-instructions.md`.
+
+**OpenCode** can go further than a rules file with the checkbox npm plugin,
+which injects the ladder into every session, registers a `checkbox` tool that
+shells to a bundled copy of the CLI, and tags written files with their
+blast-radius tier:
+
+```bash
+opencode2 plugin add checkbox-odoo     # npm; or a file: entry in opencode.json
+```
+
+Like every non-Claude path it reminds and classifies -- it cannot deny an
+edit.
+
+For hosts that want `search`/`classify`/`card_validate` as MCP tools, the
+optional `checkbox-mcp` server is at
+`plugins/checkbox/lib/checkbox/mcp_server.py`.
 
 ## How it works
 
