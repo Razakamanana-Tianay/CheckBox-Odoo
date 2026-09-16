@@ -13,6 +13,7 @@ from checkbox import card as card_mod
 from checkbox import ladder as ladder_mod
 from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
+from checkbox.hooks import HOOK_MAIN as _HOOK_MAIN
 from checkbox.knowledge import search as search_mod
 from checkbox.paths import find_project_root
 from checkbox.risk import classify as classify_mod
@@ -234,17 +235,6 @@ def cmd_approve(args: argparse.Namespace) -> int:
         return 1
     _print(record, args.json)
     return 0
-
-
-_HOOK_MAIN = {
-    "session-start": "checkbox.hooks.session_start",
-    "prompt": "checkbox.hooks.prompt",
-    "subagent-start": "checkbox.hooks.subagent_start",
-    "pre-edit": "checkbox.hooks.pre_edit",
-    "pre-bash": "checkbox.hooks.pre_bash",
-    "post-edit": "checkbox.hooks.post_edit",
-    "stop": "checkbox.hooks.stop",
-}
 
 
 def cmd_hook(args: argparse.Namespace) -> int:
