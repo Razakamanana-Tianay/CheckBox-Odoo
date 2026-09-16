@@ -13,6 +13,7 @@ from checkbox import card as card_mod
 from checkbox import ladder as ladder_mod
 from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
+from checkbox import setup as setup_mod
 from checkbox.hooks import HOOK_MAIN as _HOOK_MAIN
 from checkbox.knowledge import search as search_mod
 from checkbox.paths import find_project_root
@@ -226,6 +227,42 @@ def cmd_classify(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_setup(args: argparse.Namespace) -> int:
+    root = Path(args.project) if args.project else find_project_root()
+    if not root.is_dir():
+        print(f"error: project dir not found: {root}", file=sys.stderr)
+        return 2
+    try:
+        report = setup_mod.install(args.host, root, dry_run=args.dry_run)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+    for entry in report["files"]:
+        if args.dry_run:
+            infinitive = {
+                "write": "write",
+                "overwrite": "update",
+                "append": "merge into",
+                "skip": "skip (already present)",
+            }[entry["action"]]
+            print(f"{entry['target']}: would {infinitive} ({entry['sha256'][:12]})")
+            continue
+        label = {
+            "write": "written",
+            "overwrite": "updated",
+            "append": "merged into existing file",
+            "skip": "already present",
+        }[entry["action"]]
+        print(f"{entry['target']}: {label} ({entry['sha256'][:12]})")
+    return 0
+
+
 def cmd_approve(args: argparse.Namespace) -> int:
     root = Path(args.root) if args.root else find_project_root()
     try:
@@ -349,6 +386,20 @@ def build_parser() -> argparse.ArgumentParser:
     approve_parser.add_argument("--root", default=None)
     approve_parser.add_argument("--json", action="store_true")
     approve_parser.set_defaults(func=cmd_approve)
+
+    setup_parser = sub.add_parser(
+        "setup",
+        help="one-command install for non-Claude hosts (opencode, cursor, windsurf, copilot)",
+    )
+    setup_parser.add_argument("host", choices=setup_mod.HOSTS, help="target host")
+    setup_parser.add_argument(
+        "--project", default=None, help="project directory (default: discovered project root)"
+    )
+    setup_parser.add_argument(
+        "--dry-run", action="store_true", help="print the plan without writing any file"
+    )
+    setup_parser.add_argument("--json", action="store_true")
+    setup_parser.set_defaults(func=cmd_setup)
 
     return parser
 
