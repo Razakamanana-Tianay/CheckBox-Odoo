@@ -1,7 +1,7 @@
 {
   "name": "checkbox",
   "displayName": "Checkbox",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Forces an Odoo fit-gap ladder before writing code: standard, then configuration, then no-code, then an existing module, then code. Evidence-grounded per version/edition/hosting, decision cards, blast-radius risk tiers.",
   "author": {
     "name": "Tianay Razakamanana"

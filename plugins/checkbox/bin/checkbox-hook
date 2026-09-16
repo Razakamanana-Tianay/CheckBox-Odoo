@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Cross-platform Python launcher for hooks.json's shell-form hook commands.
+# docs/ARCHITECTURE.md D12 has the full writeup; the short version:
+#
+# The Microsoft Store registers placeholder "app execution alias" stubs for
+# both `python.exe` and `python3.exe` on a stock Windows machine. Each is a
+# real, executable file (not a missing command), so `command -v` reports
+# success for it -- the only reliable way to detect one is that it always
+# lives under a path containing "WindowsApps". python.org's own Windows
+# installer only provides `python.exe` (not `python3.exe`), so on a fresh
+# Windows box nothing but that stub answers to `python3` unless winget's
+# Python.Python.3.x was used instead.
+#
+# `_find` walks $PATH by hand (not `command -v`/`type -a`) so it can keep
+# looking past a WindowsApps match instead of stopping at the first one.
+# Preference order: python3, then py -3 (the Windows Python Launcher,
+# immune to the Store alias, shipped by the official installer), then bare
+# python.
+#
+# Only usable where hooks.json's default shell resolves to bash (it does
+# whenever Git Bash is installed, Windows included -- verified against
+# code.claude.com/docs/en/hooks, "shell" field, 2026-09-16). On a Windows
+# machine with no Git Bash at all, Claude Code runs the hook command via
+# PowerShell instead, this script never runs, and the hook fails exactly
+# as it did before this fix -- fail-open, no worse than the prior state.
+set -u
+
+event="$1"
+# CLAUDE_PLUGIN_ROOT is substituted into hooks.json's command string by
+# Claude Code itself, but that substitution doesn't reach inside a script
+# this file merely invokes -- derive it from this script's own location
+# instead (same approach bin/checkbox uses for sys.path), so it works
+# whether or not the env var also happens to be exported. Pure parameter
+# expansion, not `dirname` (an external command): the whole point of this
+# script is coping with a PATH that's missing things it should have.
+bin="${BASH_SOURCE[0]%/*}/checkbox"
+
+_find() {
+  local name="$1" dir
+  local oldifs="$IFS"
+  IFS=:
+  for dir in $PATH; do
+    case "$dir" in *WindowsApps*) continue ;; esac
+    if [ -x "$dir/$name" ]; then
+      IFS="$oldifs"
+      echo "$dir/$name"
+      return 0
+    fi
+  done
+  IFS="$oldifs"
+  return 1
+}
+
+if py3="$(_find python3)"; then
+  exec "$py3" "$bin" hook "$event"
+fi
+
+if py="$(_find py)"; then
+  exec "$py" -3 "$bin" hook "$event"
+fi
+
+if python="$(_find python)"; then
+  exec "$python" "$bin" hook "$event"
+fi
+
+# Nothing usable found -- exit non-zero, same fail-open outcome as before.
+exit 1

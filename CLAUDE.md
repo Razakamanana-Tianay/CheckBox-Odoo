@@ -78,6 +78,8 @@ plugins/checkbox/bin/checkbox hook session-start < tests/fixtures/hooks/session_
 # SubagentStart and PreToolUse (P4) use the hookSpecificOutput JSON form:
 plugins/checkbox/bin/checkbox hook subagent-start < tests/fixtures/hooks/subagent_start.json | python3 -m json.tool
 plugins/checkbox/bin/checkbox hook pre-edit < tests/fixtures/hooks/pre_edit_strict_no_card.json | python3 -m json.tool
+# what hooks.json actually calls (finds a real python3/py/python; D12):
+plugins/checkbox/bin/checkbox-hook session-start < tests/fixtures/hooks/session_start.json
 
 # one-command install for non-Claude hosts (P9): cursor, windsurf, copilot, opencode
 plugins/checkbox/bin/checkbox setup opencode --project . --dry-run

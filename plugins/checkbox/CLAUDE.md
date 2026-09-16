@@ -7,6 +7,7 @@ This file is for checkbox developers. Claude Code does not load a plugin-root `C
 ```
 .claude-plugin/plugin.json   ← only file inside .claude-plugin/
 bin/checkbox                  ← executable launcher; adds ../lib to sys.path, calls checkbox.cli:main
+bin/checkbox-hook              ← bash launcher hooks.json calls; finds a real python3/py/python, skipping the Windows Store stub (D12)
 lib/checkbox/                 ← core package
 rules/                       ← ladder.md, ladder.compact.md, hosting.md, risk/*.json
 skills/<name>/SKILL.md       ← ladder, init, card, review, mode, help
@@ -29,8 +30,9 @@ evals/                       ← claude plugin eval suite
 
 ## hooks/hooks.json
 
-- Exec form only: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
+- Shell form: `"command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" <event>"`, no `args` key. `checkbox-hook` is what finds a working Python and execs `bin/checkbox hook <event>` through it (docs/ARCHITECTURE.md D12).
 - Set an explicit `timeout` (seconds) on each handler: 5 for injection hooks, 5 for guards.
+- **Why shell form, not exec form:** exec form (`command` + `args` both set) is documented as no-shell, so a `python3`/`py`/`python` fallback chain isn't possible there at all. Shell form with `shell` left unset defaults to bash even on Windows whenever Git Bash is installed (falling back to PowerShell only when it genuinely isn't) -- verified against code.claude.com/docs/en/hooks, 2026-09-15/16. That's what makes `checkbox-hook`'s `$PATH`-walking fallback safe to rely on for the common case. Don't hand-roll the fallback logic inline in `hooks.json`'s command string instead of calling `checkbox-hook` -- re-verify D12's constraints (not from memory) before changing this.
 - **Event → subcommand mapping** (keep it in sync with `lib/checkbox/hooks/`):
 
   | Event | Matcher | Subcommand |

@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "session-start"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" session-start",
             "timeout": 5
           }
         ]
@@ -18,8 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "prompt"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" prompt",
             "timeout": 5
           }
         ]
@@ -30,8 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "subagent-start"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" subagent-start",
             "timeout": 5
           }
         ]
@@ -43,8 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "pre-edit"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" pre-edit",
             "timeout": 5
           }
         ]
@@ -54,8 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "pre-bash"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" pre-bash",
             "timeout": 5
           }
         ]
@@ -67,8 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "post-edit"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" post-edit",
             "timeout": 5
           }
         ]
@@ -79,8 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "stop"],
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" stop",
             "timeout": 5
           }
         ]

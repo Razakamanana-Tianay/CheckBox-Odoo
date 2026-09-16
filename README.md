@@ -71,6 +71,31 @@ For hosts that want `search`/`classify`/`card_validate` as MCP tools, the
 optional `checkbox-mcp` server is at
 `plugins/checkbox/lib/checkbox/mcp_server.py`.
 
+### Windows: "Python was not found" in a hook
+
+The official python.org Windows installer only puts `python.exe` on PATH,
+not `python3.exe` -- so on a stock Windows machine the only thing answering
+to `python3` is the Microsoft Store's placeholder stub, which prints
+"Python was not found; run without arguments to install from the Microsoft
+Store..." and exits. As of v1.1.1, checkbox's hooks detect and skip that
+stub automatically (falling through `py -3`, then bare `python`) -- this
+works whenever Git Bash is installed, which `git` for Windows already gives
+you. Hooks fail open either way (your session keeps working even when
+nothing usable is found), but the ladder/guard reminders silently do
+nothing until Python actually resolves.
+
+If you're on an older version, or a Windows machine with no Git Bash at
+all, fix it once:
+
+- Settings > Apps > Advanced app settings > App execution aliases -- turn
+  off the `python.exe`/`python3.exe` entries, then reinstall/repair Python
+  from python.org with "Add python.exe to PATH" checked; or
+- `winget install Python.Python.3.12` (registers `python3` correctly,
+  unlike a manual python.org install).
+
+docs/ARCHITECTURE.md's decision log (D12) has the full platform-constraint
+writeup for how the automatic fix works and its one remaining gap.
+
 ## How it works
 
 - **`/checkbox:init`** detects the project profile: version, edition, hosting,
