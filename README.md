@@ -1,5 +1,7 @@
 # checkbox
 
+[![CI](https://github.com/TitiRazak/CheckBox-Odoo/actions/workflows/ci.yml/badge.svg)](https://github.com/TitiRazak/CheckBox-Odoo/actions/workflows/ci.yml)
+
 A Claude Code plugin (plus installable adapters and a ready-to-install npm
 plugin for OpenCode, Cursor, Windsurf, GitHub Copilot and other agents) that
 makes an AI coding agent walk an **Odoo fit-gap ladder** before it writes any
@@ -114,6 +116,31 @@ python3 plugins\checkbox\bin\checkbox profile detect ... --json
 rather than relying on the OS to run `bin/checkbox` as if it were a native
 executable.
 
+## Quickstart
+
+```bash
+claude plugin marketplace add checkbox-odoo
+claude plugin install checkbox-odoo@checkbox
+cd /path/to/your/odoo/project
+claude          # run /checkbox:init once: detects version/edition/hosting, confirms, builds the index
+```
+
+From then on, every turn gets a compact reminder injected before you write
+Odoo code -- this is real output from `checkbox ladder render`, not a mockup:
+
+```
+$ checkbox ladder render --level lite --root tests/fixtures/projects/18-ce
+checkbox (lite): before Odoo code, climb the ladder — skip? standard in 18.0
+community? configure? no-code? existing module? Evidence via `checkbox
+search`, not memory. Code only the gap, least invasive point. Card required
+at .checkbox/decisions/. Full rungs: /checkbox:ladder
+```
+
+Ask for a feature ("purchase orders above 5000 need manager approval") and
+the ladder skill searches the project's real Odoo source before answering,
+drafts a decision card citing what it found, and -- in `strict` mode --
+denies the edit outright until that card exists.
+
 ## How it works
 
 - **`/checkbox:init`** detects the project profile: version, edition, hosting,
@@ -151,6 +178,10 @@ Enterprise source available. Noise between runs is expected and kept.
 \*\* A genuine, reproducible finding, kept rather than loosening the rubric:
 the agent asks three clarifying questions against the ladder's explicit
 "at most one".
+
+## Contributing
+
+Bug reports and PRs welcome -- see `CONTRIBUTING.md` and `CHANGELOG.md`.
 
 ## Credits
 
