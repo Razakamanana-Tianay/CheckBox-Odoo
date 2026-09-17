@@ -10,8 +10,13 @@ this file instead. Gitignored -- session state is never committed (see repo
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
+
+_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
 
 def _default() -> dict[str, Any]:
@@ -43,8 +48,34 @@ def load(root: Path, session_id: str) -> dict[str, Any]:
 def save(root: Path, session_id: str, state: dict[str, Any]) -> Path:
     path = _session_path(root, session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(state, indent=2) + "\n")
+        os.replace(tmp_name, path)
+    finally:
+        Path(tmp_name).unlink(missing_ok=True)
     return path
+
+
+def prune_stale(root: Path, *, max_age_seconds: int = _MAX_AGE_SECONDS) -> int:
+    """Delete session files untouched for *max_age_seconds* (default 30
+    days). One file per Claude Code session id accumulates here forever
+    otherwise -- gitignored and harmless at normal scale, but there's no
+    reason to keep them indefinitely. Returns the number removed."""
+    session_dir = Path(root) / ".checkbox" / ".session"
+    if not session_dir.is_dir():
+        return 0
+    cutoff = time.time() - max_age_seconds
+    removed = 0
+    for path in session_dir.glob("*.json"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def record_touched_addon(root: Path, session_id: str, addon: str) -> dict[str, Any]:
