@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from checkbox import profile as profile_mod
 from checkbox import setup as setup_mod
 from checkbox.hooks import HOOK_MAIN as _HOOK_MAIN
 from checkbox.knowledge import search as search_mod
-from checkbox.paths import find_project_root
+from checkbox.paths import data_dir, find_project_root
 from checkbox.risk import classify as classify_mod
 from checkbox.risk import rules as rules_mod
 
@@ -30,7 +31,9 @@ def _print(data: dict[str, Any], as_json: bool) -> None:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
+    import shutil
     import sqlite3
+    import subprocess
 
     checks: dict[str, Any] = {
         "python_version": ".".join(map(str, sys.version_info[:3])),
@@ -49,6 +52,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     checks["project_root"] = str(root)
     checks["profile_present"] = (root / ".checkbox" / "profile.json").is_file()
 
+    # Windows Store registers a `python3.exe`/`python.exe` alias stub that
+    # `shutil.which` finds and reports success for, but that errors when
+    # actually run (D12). checkbox-hook already skips it when resolving a
+    # hook's interpreter; this just surfaces the same risk for anyone typing
+    # bare `python3` themselves.
+    python3_path = shutil.which("python3")
+    checks["python3_on_path"] = python3_path
+    checks["python3_is_windows_store_stub"] = bool(
+        python3_path and "windowsapps" in python3_path.lower()
+    )
+
+    bin_checkbox = Path(__file__).resolve().parents[2] / "bin" / "checkbox"
+    checks["bin_checkbox_executable"] = (
+        True if sys.platform == "win32" else os.access(bin_checkbox, os.X_OK)
+    )
+
+    # P7's checkbox-mcp is optional and not installed by default (repo
+    # CLAUDE.md's ".mcp.json" section) -- absent is a normal, expected
+    # state, not a failure. Report it so a red MCP connection banner isn't
+    # a mystery.
+    venv_python = (
+        data_dir() / "venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
+    )
+    if not venv_python.is_file():
+        checks["mcp_venv"] = "not installed (optional; see lib/checkbox/mcp_server.py docstring)"
+    else:
+        probe = subprocess.run(
+            [str(venv_python), "-c", "import mcp"], capture_output=True, timeout=10
+        )
+        checks["mcp_venv"] = "ok" if probe.returncode == 0 else "installed but `import mcp` fails"
+
     _print(checks, args.json)
     return 0 if checks["python_version_ok"] else 1
 
@@ -56,6 +90,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 def cmd_profile_detect(args: argparse.Namespace) -> int:
     root = Path(args.path) if args.path else find_project_root()
     prof = profile_mod.detect(root)
+    if not prof.detected:
+        nested = profile_mod.find_nested_checkbox_dirs(root)
+        if nested:
+            names = ", ".join(str(p.relative_to(root)) for p in nested)
+            print(
+                f"note: no Odoo checkout found at {root}, but {names} already has a "
+                f"checkbox profile -- run init from there, or\n"
+                f"  `checkbox profile detect {nested[0]}`",
+                file=sys.stderr,
+            )
     _print(prof.to_dict(), args.json)
     return 0
 
@@ -107,6 +151,42 @@ def cmd_card_next_id(args: argparse.Namespace) -> int:
     root = Path(args.root) if args.root else find_project_root()
     new_id = card_mod.next_id(root / ".checkbox" / "decisions")
     _print({"next_id": new_id}, args.json)
+    return 0
+
+
+def cmd_card_list(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    decisions_dir = root / ".checkbox" / "decisions"
+    cards: list[dict[str, Any]] = []
+    for path in sorted(decisions_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
+        try:
+            card = card_mod.parse(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            cards.append({"file": path.name, "error": str(exc)})
+            continue
+        cards.append(
+            {
+                "file": path.name,
+                "id": card.get("id"),
+                "status": card.get("status"),
+                "verdict": card.get("verdict"),
+                "tier": card.get("tier"),
+            }
+        )
+    if args.status:
+        cards = [c for c in cards if c.get("status") == args.status]
+
+    if args.json:
+        print(json.dumps(cards, indent=2))
+        return 0
+    if not cards:
+        print("no cards" if not args.status else f"no cards with status: {args.status}")
+        return 0
+    for c in cards:
+        if "error" in c:
+            print(f"{c['file']}: unparseable ({c['error']})")
+            continue
+        print(f"{c['id']}  {c['status']:<10} {c['verdict']:<10} tier={c['tier']}  {c['file']}")
     return 0
 
 
@@ -320,6 +400,12 @@ def build_parser() -> argparse.ArgumentParser:
     next_id.add_argument("--root", default=None)
     next_id.add_argument("--json", action="store_true")
     next_id.set_defaults(func=cmd_card_next_id)
+
+    card_list = card_sub.add_parser("list", help="list decision cards, optionally by status")
+    card_list.add_argument("--status", choices=card_mod.VALID_STATUSES, default=None)
+    card_list.add_argument("--root", default=None)
+    card_list.add_argument("--json", action="store_true")
+    card_list.set_defaults(func=cmd_card_list)
 
     card_validate = card_sub.add_parser("validate", help="validate a card file")
     card_validate.add_argument("file")
