@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from checkbox import profile as profile_mod
 from checkbox import setup as setup_mod
 from checkbox.hooks import HOOK_MAIN as _HOOK_MAIN
 from checkbox.knowledge import search as search_mod
-from checkbox.paths import find_project_root
+from checkbox.paths import data_dir, find_project_root
 from checkbox.risk import classify as classify_mod
 from checkbox.risk import rules as rules_mod
 
@@ -30,7 +31,9 @@ def _print(data: dict[str, Any], as_json: bool) -> None:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
+    import shutil
     import sqlite3
+    import subprocess
 
     checks: dict[str, Any] = {
         "python_version": ".".join(map(str, sys.version_info[:3])),
@@ -48,6 +51,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     root = find_project_root()
     checks["project_root"] = str(root)
     checks["profile_present"] = (root / ".checkbox" / "profile.json").is_file()
+
+    # Windows Store registers a `python3.exe`/`python.exe` alias stub that
+    # `shutil.which` finds and reports success for, but that errors when
+    # actually run (D12). checkbox-hook already skips it when resolving a
+    # hook's interpreter; this just surfaces the same risk for anyone typing
+    # bare `python3` themselves.
+    python3_path = shutil.which("python3")
+    checks["python3_on_path"] = python3_path
+    checks["python3_is_windows_store_stub"] = bool(
+        python3_path and "windowsapps" in python3_path.lower()
+    )
+
+    bin_checkbox = Path(__file__).resolve().parents[2] / "bin" / "checkbox"
+    checks["bin_checkbox_executable"] = (
+        True if sys.platform == "win32" else os.access(bin_checkbox, os.X_OK)
+    )
+
+    # P7's checkbox-mcp is optional and not installed by default (repo
+    # CLAUDE.md's ".mcp.json" section) -- absent is a normal, expected
+    # state, not a failure. Report it so a red MCP connection banner isn't
+    # a mystery.
+    venv_python = (
+        data_dir() / "venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
+    )
+    if not venv_python.is_file():
+        checks["mcp_venv"] = "not installed (optional; see lib/checkbox/mcp_server.py docstring)"
+    else:
+        probe = subprocess.run(
+            [str(venv_python), "-c", "import mcp"], capture_output=True, timeout=10
+        )
+        checks["mcp_venv"] = "ok" if probe.returncode == 0 else "installed but `import mcp` fails"
 
     _print(checks, args.json)
     return 0 if checks["python_version_ok"] else 1

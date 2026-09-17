@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -12,21 +15,50 @@ PROJECT_18CE = REPO_ROOT / "tests" / "fixtures" / "projects" / "18-ce"
 STUB_18CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo18-ce"
 
 
-def _run(*args: str) -> subprocess.CompletedProcess:
+def _run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     # Always go through an explicit interpreter, never rely on the OS
     # resolving bin/checkbox's shebang -- subprocess.run() bypasses shell
     # shebang handling entirely on Windows (WinError 193 for an
     # extension-less script), the same problem D12 solved for hooks.json
     # by always `exec`ing a resolved python rather than the bare script.
     return subprocess.run(
-        [sys.executable, str(BIN), *args], capture_output=True, text=True, timeout=10, cwd=REPO_ROOT
+        [sys.executable, str(BIN), *args],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        cwd=REPO_ROOT,
+        env=env,
     )
 
 
 def test_doctor_json():
     result = _run("doctor", "--json")
     assert result.returncode == 0
-    assert '"python_version_ok": true' in result.stdout
+    data = json.loads(result.stdout)
+    assert data["python_version_ok"] is True
+    assert "python3_is_windows_store_stub" in data
+    assert "bin_checkbox_executable" in data
+    assert "mcp_venv" in data
+
+
+def test_doctor_flags_a_windows_store_python3_stub(tmp_path):
+    stub_dir = tmp_path / "WindowsApps"
+    stub_dir.mkdir()
+    stub = stub_dir / "python3"
+    stub.write_text("#!/bin/sh\necho stub\n")
+    stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+
+    env = dict(os.environ) | {"PATH": f"{stub_dir}{os.pathsep}{os.environ.get('PATH', '')}"}
+    result = _run("doctor", "--json", env=env)
+    data = json.loads(result.stdout)
+    assert data["python3_is_windows_store_stub"] is True
+
+
+def test_doctor_reports_missing_mcp_venv(tmp_path):
+    env = dict(os.environ) | {"CHECKBOX_DATA_DIR": str(tmp_path / "no-venv-here")}
+    result = _run("doctor", "--json", env=env)
+    data = json.loads(result.stdout)
+    assert "not installed" in data["mcp_venv"]
 
 
 def test_ladder_render_with_known_profile():
