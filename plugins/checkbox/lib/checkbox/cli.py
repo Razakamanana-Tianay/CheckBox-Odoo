@@ -83,6 +83,18 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         )
         checks["mcp_venv"] = "ok" if probe.returncode == 0 else "installed but `import mcp` fails"
 
+    # D13: Claude Code MCP servers have no shell and no per-OS command
+    # field, so plugins/checkbox/.mcp.json's hardcoded POSIX path can never
+    # resolve here even once the venv above is installed correctly -- tell
+    # Windows users what to do instead of leaving a silent red banner.
+    if sys.platform == "win32":
+        checks["mcp_venv"] += (
+            f" -- note: .mcp.json hardcodes a POSIX venv path and can't vary "
+            f"by OS, so checkbox-mcp won't connect through the plugin's own "
+            f".mcp.json; register it in your own project/user MCP config "
+            f"pointed at {venv_python} instead"
+        )
+
     _print(checks, args.json)
     return 0 if checks["python_version_ok"] else 1
 
