@@ -146,6 +146,61 @@ def test_store_search_no_match_returns_empty(tmp_path):
     assert results == []
 
 
+def test_store_search_does_not_crash_on_fts5_special_characters(tmp_path):
+    # Regression: "on-premise" (this project's own hosting vocabulary) used
+    # to raise sqlite3.OperationalError -- FTS5's MATCH syntax treats "-" as
+    # an exclusion operator, not literal text. An unbalanced quote raised a
+    # separate "unterminated string" error.
+    con = store.connect(tmp_path / "index.sqlite")
+    store.index_documents(
+        con,
+        [
+            {
+                "kind": "source",
+                "ref": "x",
+                "line": 1,
+                "title": "purchase approval",
+                "snippet": "on-premise minimum amount",
+                "version": "18.0",
+            }
+        ],
+    )
+    results = store.search(con, "on-premise")
+    assert len(results) == 1
+    assert store.search(con, '"unterminated') == []
+    assert store.search(con, "") == []
+    con.close()
+
+
+def test_store_search_like_fallback_escapes_wildcards(tmp_path, monkeypatch):
+    monkeypatch.setattr(store, "has_fts5", lambda: False)
+    con = store.connect(tmp_path / "index_like.sqlite")
+    store.index_documents(
+        con,
+        [
+            {
+                "kind": "source",
+                "ref": "x",
+                "line": 1,
+                "title": "test_case exact",
+                "snippet": "literal underscore",
+                "version": "18.0",
+            },
+            {
+                "kind": "source",
+                "ref": "y",
+                "line": 1,
+                "title": "testXcase should not match",
+                "snippet": "an unescaped _ would wildcard-match this",
+                "version": "18.0",
+            },
+        ],
+    )
+    results = store.search(con, "test_case")
+    con.close()
+    assert [r["title"] for r in results] == ["test_case exact"]
+
+
 def test_store_clear_empties_the_table(tmp_path):
     con = store.connect(tmp_path / "index.sqlite")
     store.index_documents(con, _SAMPLE_DOCS)
