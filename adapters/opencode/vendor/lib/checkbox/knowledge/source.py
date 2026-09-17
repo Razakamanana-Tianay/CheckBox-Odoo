@@ -18,12 +18,28 @@ manifests are read with `ast.literal_eval`, Python settings fields with
 from __future__ import annotations
 
 import ast
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 _SETTINGS_FIELD_TYPES = ("Boolean", "Selection")
 _SNIPPET_MAX = 300
+
+# Directories that never contain a manifest, a res.config.settings field,
+# or a settings view -- but that are often the *majority* of files in a
+# real Odoo addon (i18n alone can be 50+ .po files per addon). Pruned from
+# every walk below, and reused by knowledge/search.py's staleness check so
+# that check always covers exactly the file set build() actually reads.
+NOISE_DIRS = frozenset({"static", "i18n", "tests", "migrations", "__pycache__", ".git"})
+
+
+def iter_relevant_files(root: Path):
+    """Yield every file under *root*, pruning NOISE_DIRS as it descends."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in NOISE_DIRS]
+        for name in filenames:
+            yield Path(dirpath) / name
 
 
 def _iter_addon_dirs(addons_root: Path):
@@ -173,8 +189,9 @@ def build(addons_roots: list[Path], version: str) -> list[dict[str, Any]]:
             if manifest is None:
                 continue
             docs.append(_manifest_doc(addon_dir, manifest, version))
-            for py_file in addon_dir.rglob("*.py"):
-                docs.extend(_settings_field_docs(py_file, version))
-            for xml_file in addon_dir.rglob("*.xml"):
-                docs.extend(_setting_view_docs(xml_file, version))
+            for file in iter_relevant_files(addon_dir):
+                if file.suffix == ".py":
+                    docs.extend(_settings_field_docs(file, version))
+                elif file.suffix == ".xml":
+                    docs.extend(_setting_view_docs(file, version))
     return docs

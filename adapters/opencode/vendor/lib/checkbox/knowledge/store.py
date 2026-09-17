@@ -83,12 +83,29 @@ def index_documents(con: sqlite3.Connection, docs: list[dict[str, Any]]) -> int:
     return len(docs)
 
 
+def _fts5_query(query: str) -> str:
+    """Turn free text into an FTS5 query that can't raise a syntax error.
+
+    FTS5's MATCH syntax treats `-`, `"`, `*`, `:`, and bare NOT/AND/OR as
+    operators, not literal text -- verified empirically: "on-premise" (a
+    term this project's own hosting vocabulary uses) raises "no such
+    column: premise", and an unbalanced quote raises "unterminated
+    string". Quoting each token as its own phrase (doubling any internal
+    quote) forces every character to match literally instead.
+    """
+    tokens = query.split()
+    return " ".join(f'"{tok.replace(chr(34), chr(34) * 2)}"' for tok in tokens)
+
+
 def search(con: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[str, Any]]:
     if has_fts5():
+        fts_query = _fts5_query(query)
+        if not fts_query:
+            return []
         rows = con.execute(
             "SELECT kind, ref, line, title, snippet, version, bm25(documents) AS rank "
             "FROM documents WHERE documents MATCH ? ORDER BY rank LIMIT ?",
-            (query, limit),
+            (fts_query, limit),
         ).fetchall()
         # bm25() is lower-is-better; negate so callers can treat higher score as better everywhere.
         return [
@@ -103,10 +120,13 @@ def search(con: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[st
             }
             for r in rows
         ]
-    like = f"%{query}%"
+    # Escape LIKE's own wildcards so a literal "%" or "_" in the query
+    # matches literally instead of acting as a wildcard.
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like = f"%{escaped}%"
     rows = con.execute(
         "SELECT kind, ref, line, title, snippet, version FROM documents "
-        "WHERE title LIKE ? OR snippet LIKE ? LIMIT ?",
+        "WHERE title LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\' LIMIT ?",
         (like, like, limit),
     ).fetchall()
     return [

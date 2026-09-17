@@ -28,25 +28,30 @@ def _index_path(roots: list[Path], version: str) -> Path:
 
 
 def _newest_mtime(roots: list[Path]) -> float:
-    """Latest mtime of any file under *roots* -- 0.0 if none exist.
+    """Latest mtime of any file under *roots* that `source.build()` would
+    actually read -- 0.0 if none exist.
 
     Cached indexes never expired on their own (caught while building P5's
     eval fixtures: adding a settings view *after* the first `checkbox
     search` call left it permanently unindexed, silently, since `.sqlite`
-    existing was the only staleness check). This is a full walk, same cost
-    as `source.build`'s own walk, but `ensure_index` isn't hook-gated
+    existing was the only staleness check). This runs on *every* search
+    call, not just index builds -- `ensure_index` isn't hook-gated
     (lib/checkbox/CLAUDE.md: hooks never touch `knowledge/`), so it's not
-    bound by the 150ms hook budget.
+    bound by the 150ms hook budget, but a real checkout's `i18n/`/`static/`
+    directories alone can be most of its files, so walking them on every
+    call for a staleness check that never reads them is pure waste --
+    measured 17x slower on a synthetic tree shaped like a real addon set.
+    `source.iter_relevant_files` prunes the same NOISE_DIRS `build()`
+    itself skips, which also keeps the two walks in sync by construction.
     """
     newest = 0.0
     for root in roots:
         if not root.is_dir():
             continue
-        for path in root.rglob("*"):
-            if path.is_file():
-                mtime = path.stat().st_mtime
-                if mtime > newest:
-                    newest = mtime
+        for path in source_mod.iter_relevant_files(root):
+            mtime = path.stat().st_mtime
+            if mtime > newest:
+                newest = mtime
     return newest
 
 
