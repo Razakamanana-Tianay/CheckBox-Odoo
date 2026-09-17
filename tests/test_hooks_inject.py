@@ -51,7 +51,7 @@ def test_session_start_silent_when_mode_off(capsys, monkeypatch):
 def test_session_start_dry_run_end_to_end():
     payload = (REPO_ROOT / "tests" / "fixtures" / "hooks" / "session_start.json").read_text()
     result = subprocess.run(
-        [str(BIN), "hook", "session-start"],
+        [sys.executable, str(BIN), "hook", "session-start"],
         input=payload,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -103,7 +103,7 @@ def test_subagent_start_silent_in_lite_mode(capsys, monkeypatch):
 def test_subagent_start_dry_run_end_to_end():
     payload = (REPO_ROOT / "tests" / "fixtures" / "hooks" / "subagent_start.json").read_text()
     result = subprocess.run(
-        [str(BIN), "hook", "subagent-start"],
+        [sys.executable, str(BIN), "hook", "subagent-start"],
         input=payload,
         cwd=REPO_ROOT,
         capture_output=True,

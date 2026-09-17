@@ -96,6 +96,24 @@ all, fix it once:
 docs/ARCHITECTURE.md's decision log (D12) has the full platform-constraint
 writeup for how the automatic fix works and its one remaining gap.
 
+### Windows: running `bin/checkbox` directly from cmd.exe or PowerShell
+
+The commands above (`plugins/checkbox/bin/checkbox ...`) work as-is in Git
+Bash, and in WSL, because those shells understand the `#!/usr/bin/env
+python3` shebang line. Native `cmd.exe` and PowerShell don't -- and because
+the path has directory separators, Windows won't fall back to searching for
+a `.cmd`/`.exe` sibling the way it would for a bare command name on `PATH`.
+On those shells, put `python3` (or `py -3`) in front of the command:
+
+```powershell
+python3 plugins\checkbox\bin\checkbox profile detect ... --json
+```
+
+`hooks.json` doesn't have this problem -- it always goes through
+`checkbox-hook`, which resolves and `exec`s a real Python itself (D12)
+rather than relying on the OS to run `bin/checkbox` as if it were a native
+executable.
+
 ## How it works
 
 - **`/checkbox:init`** detects the project profile: version, edition, hosting,

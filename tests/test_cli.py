@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -12,8 +13,13 @@ STUB_18CE = REPO_ROOT / "tests" / "fixtures" / "stubs" / "odoo18-ce"
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
+    # Always go through an explicit interpreter, never rely on the OS
+    # resolving bin/checkbox's shebang -- subprocess.run() bypasses shell
+    # shebang handling entirely on Windows (WinError 193 for an
+    # extension-less script), the same problem D12 solved for hooks.json
+    # by always `exec`ing a resolved python rather than the bare script.
     return subprocess.run(
-        [str(BIN), *args], capture_output=True, text=True, timeout=10, cwd=REPO_ROOT
+        [sys.executable, str(BIN), *args], capture_output=True, text=True, timeout=10, cwd=REPO_ROOT
     )
 
 

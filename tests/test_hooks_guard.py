@@ -194,7 +194,7 @@ def test_stop_allows_when_no_addons_touched(tmp_path):
 
 def test_cli_end_to_end_pre_edit_deny():
     result = subprocess.run(
-        [str(BIN), "hook", "pre-edit"],
+        [sys.executable, str(BIN), "hook", "pre-edit"],
         cwd=REPO_ROOT,
         input=(HOOK_FIXTURES / "pre_edit_strict_no_card.json").read_bytes(),
         capture_output=True,
