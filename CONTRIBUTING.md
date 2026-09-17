@@ -63,6 +63,32 @@ One phase (`docs/ARCHITECTURE.md` §13) per PR where practical. If a bug
 report doesn't cleanly map to a phase, that's fine -- just keep the diff
 focused on the bug.
 
+## Branching, PRs and releases
+
+`main` is protected -- direct pushes are rejected for everyone, including
+admins. Every change goes through a branch and a PR:
+
+```bash
+git checkout -b <kind>/<short-slug>   # e.g. fix/mcp-windows-note, docs/readme-quickstart
+# commit, push, then:
+gh pr create
+```
+
+No required reviewer count is set (this is currently a solo-maintained
+repo), but the PR itself, and CI passing on it, are still required by the
+branch protection rule -- there is no way to bypass either from the CLI.
+
+Releases: bump `version` in
+`plugins/checkbox/.claude-plugin/plugin.json`, add an entry to
+`CHANGELOG.md`, run `python3 scripts/build_adapters.py` if adapters need
+regenerating, and land it through the same PR flow. Once merged, tag the
+merge commit on `main`:
+
+```bash
+git tag -a vX.Y.Z -m "<one-line summary, matches the CHANGELOG entry>"
+git push origin vX.Y.Z
+```
+
 ## License
 
 MIT (see `LICENSE`). Contributions are accepted under the same license.
