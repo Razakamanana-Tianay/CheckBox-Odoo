@@ -116,6 +116,26 @@ def test_module_imports_and_reports_missing_sdk_in_a_real_interpreter_without_it
     assert "mcp" in result.stderr.lower()
 
 
+def test_real_mcp_json_invocation_does_not_crash_on_missing_checkbox_module():
+    """Regression for the bug the SDK-swapping tests above never caught:
+    .mcp.json invokes this file as a bare script (`<python> mcp_server.py
+    --root ...`), not via `sys.path.insert` + `import` like every other
+    test in this module. Running it that way used to raise
+    `ModuleNotFoundError: No module named 'checkbox'`, because Python puts
+    the script's own directory (lib/checkbox/) on sys.path[0], not lib/."""
+    import subprocess
+
+    script = REPO_ROOT / "plugins" / "checkbox" / "lib" / "checkbox" / "mcp_server.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--root", str(REPO_ROOT)],
+        input="",
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert "ModuleNotFoundError" not in result.stderr, result.stderr
+
+
 # -- the tools themselves (needs a real `mcp` SDK install) ---------------------
 
 mcp_sdk = pytest.importorskip("mcp", reason='P7\'s checkbox-mcp needs `pip install -e ".[mcp]"`')

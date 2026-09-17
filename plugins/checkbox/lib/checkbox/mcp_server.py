@@ -39,6 +39,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+if __name__ == "__main__":
+    # .mcp.json invokes this file directly as a script, so Python puts
+    # this file's own directory (lib/checkbox/) on sys.path[0], not lib/
+    # -- `import checkbox` fails without this, same problem bin/checkbox
+    # solves for the CLI launcher.
+    _LIB = Path(__file__).resolve().parent.parent
+    if str(_LIB) not in sys.path:
+        sys.path.insert(0, str(_LIB))
+
 from checkbox import card as card_mod
 from checkbox import profile as profile_mod
 from checkbox.knowledge import search as search_mod
