@@ -144,6 +144,42 @@ def cmd_card_next_id(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_card_list(args: argparse.Namespace) -> int:
+    root = Path(args.root) if args.root else find_project_root()
+    decisions_dir = root / ".checkbox" / "decisions"
+    cards: list[dict[str, Any]] = []
+    for path in sorted(decisions_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
+        try:
+            card = card_mod.parse(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            cards.append({"file": path.name, "error": str(exc)})
+            continue
+        cards.append(
+            {
+                "file": path.name,
+                "id": card.get("id"),
+                "status": card.get("status"),
+                "verdict": card.get("verdict"),
+                "tier": card.get("tier"),
+            }
+        )
+    if args.status:
+        cards = [c for c in cards if c.get("status") == args.status]
+
+    if args.json:
+        print(json.dumps(cards, indent=2))
+        return 0
+    if not cards:
+        print("no cards" if not args.status else f"no cards with status: {args.status}")
+        return 0
+    for c in cards:
+        if "error" in c:
+            print(f"{c['file']}: unparseable ({c['error']})")
+            continue
+        print(f"{c['id']}  {c['status']:<10} {c['verdict']:<10} tier={c['tier']}  {c['file']}")
+    return 0
+
+
 def cmd_card_validate(args: argparse.Namespace) -> int:
     root = Path(args.root) if args.root else find_project_root()
     path = Path(args.file)
@@ -354,6 +390,12 @@ def build_parser() -> argparse.ArgumentParser:
     next_id.add_argument("--root", default=None)
     next_id.add_argument("--json", action="store_true")
     next_id.set_defaults(func=cmd_card_next_id)
+
+    card_list = card_sub.add_parser("list", help="list decision cards, optionally by status")
+    card_list.add_argument("--status", choices=card_mod.VALID_STATUSES, default=None)
+    card_list.add_argument("--root", default=None)
+    card_list.add_argument("--json", action="store_true")
+    card_list.set_defaults(func=cmd_card_list)
 
     card_validate = card_sub.add_parser("validate", help="validate a card file")
     card_validate.add_argument("file")

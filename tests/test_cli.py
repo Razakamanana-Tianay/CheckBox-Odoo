@@ -61,6 +61,55 @@ def test_doctor_reports_missing_mcp_venv(tmp_path):
     assert "not installed" in data["mcp_venv"]
 
 
+_CARD_TEMPLATE = """\
+```checkbox-card
+id: {id}
+verdict: {verdict}
+evidence: source|res.config.settings
+addons: -
+tier: {tier}
+status: {status}
+```
+"""
+
+
+def _write_card(
+    decisions_dir: Path, card_id: str, status: str, verdict: str = "config", tier: str = "-"
+) -> None:
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    (decisions_dir / f"{card_id}-x.md").write_text(
+        _CARD_TEMPLATE.format(id=card_id, verdict=verdict, tier=tier, status=status)
+    )
+
+
+def test_card_list_json_reports_every_card(tmp_path):
+    decisions = tmp_path / ".checkbox" / "decisions"
+    _write_card(decisions, "0001", status="approved")
+    _write_card(decisions, "0002", status="proposed", verdict="module", tier="amber")
+
+    result = _run("card", "list", "--root", str(tmp_path), "--json")
+    assert result.returncode == 0
+    cards = json.loads(result.stdout)
+    assert [c["id"] for c in cards] == ["0001", "0002"]
+    assert [c["status"] for c in cards] == ["approved", "proposed"]
+
+
+def test_card_list_filters_by_status(tmp_path):
+    decisions = tmp_path / ".checkbox" / "decisions"
+    _write_card(decisions, "0001", status="approved")
+    _write_card(decisions, "0002", status="proposed")
+
+    result = _run("card", "list", "--root", str(tmp_path), "--status", "proposed", "--json")
+    cards = json.loads(result.stdout)
+    assert [c["id"] for c in cards] == ["0002"]
+
+
+def test_card_list_with_no_decisions_dir_is_empty_not_an_error(tmp_path):
+    result = _run("card", "list", "--root", str(tmp_path), "--json")
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == []
+
+
 def test_ladder_render_with_known_profile():
     result = _run("ladder", "render", "--level", "full", "--root", str(PROJECT_18CE))
     assert result.returncode == 0
