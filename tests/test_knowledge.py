@@ -93,6 +93,24 @@ def test_build_empty_roots_returns_empty_list(tmp_path):
     assert source_mod.build([tmp_path / "does-not-exist"], "18.0") == []
 
 
+def test_iter_relevant_files_prunes_noise_dirs(tmp_path):
+    # i18n/static/tests/migrations/__pycache__ can be most of a real
+    # addon's files (i18n alone: one .po per language) and never contain
+    # a manifest, settings field, or settings view -- both build() and
+    # search.py's staleness walk must skip them, or every checkbox search
+    # call pays for walking translation files it will never read.
+    addon = tmp_path / "mod"
+    (addon / "models").mkdir(parents=True)
+    (addon / "i18n").mkdir()
+    (addon / "static" / "src" / "js").mkdir(parents=True)
+    (addon / "models" / "m.py").write_text("# x")
+    (addon / "i18n" / "fr.po").write_text("# translation")
+    (addon / "static" / "src" / "js" / "f.js").write_text("// x")
+
+    found = {p.name for p in source_mod.iter_relevant_files(addon)}
+    assert found == {"m.py"}
+
+
 # -- store.py -------------------------------------------------------------------
 
 _SAMPLE_DOCS = [
@@ -269,3 +287,27 @@ def test_search_kind_filter_excludes_other_kinds(tmp_path, monkeypatch):
     profile = Profile(odoo_version="18.0", edition="community", odoo_source=str(STUB_18CE))
     results = search_mod.search(profile, project_root=REPO_ROOT, query="purchase", kinds=["docs"])
     assert results == []  # nothing of kind "docs" exists yet (P3 scope is source-only)
+
+
+def test_search_does_not_rebuild_when_only_a_noise_dir_file_changes(tmp_path, monkeypatch):
+    # The staleness check must stay in sync with what build() actually
+    # reads: touching a file under i18n/ (never indexed) must not trigger
+    # a reindex, or the noise-dir pruning in _newest_mtime would just move
+    # the wasted work from "walk every call" to "reindex every call".
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path / "data"))
+    addons = tmp_path / "addons"
+    addon = addons / "demo"
+    (addon / "i18n").mkdir(parents=True)
+    (addon / "__manifest__.py").write_text("{'name': 'Demo'}\n", encoding="utf-8")
+    profile = Profile(odoo_version="18.0", edition="community", odoo_source=str(tmp_path))
+
+    db_path = search_mod.ensure_index(profile, project_root=REPO_ROOT)
+    first_mtime = db_path.stat().st_mtime
+
+    import time
+
+    time.sleep(0.01)
+    (addon / "i18n" / "fr.po").write_text("# translation\n", encoding="utf-8")
+
+    db_path_again = search_mod.ensure_index(profile, project_root=REPO_ROOT)
+    assert db_path_again.stat().st_mtime == first_mtime  # not rebuilt
