@@ -13,7 +13,11 @@ profile) -- don't restate it here, that file is the single source of truth.
 
 1. **Understand first.** Restate the business need in one sentence. If the
    ask is ambiguous, ask at most one clarifying question -- don't default to
-   asking when a reasonable reading exists.
+   asking when a reasonable reading exists. "What feature do you want?" has
+   no fixed set of answers, so ask it as an ordinary message, not through a
+   forced-choice question tool (those need 2-4 real options; a single-option
+   or no-option call is invalid and just errors instead of reaching the
+   person).
 2. **Read before judging.** If the change would touch an existing model or
    custom addon, read that code before picking a rung. The ladder shortens
    the solution, never the reading.
