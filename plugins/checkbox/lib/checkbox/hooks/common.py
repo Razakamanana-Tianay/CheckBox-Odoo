@@ -30,13 +30,26 @@ def read_stdin_json() -> dict[str, Any]:
         return {}
 
 
+def _write_utf8(text: str) -> None:
+    """Write UTF-8 to stdout regardless of the interpreter's default stdout
+    encoding. On Windows, a non-console stdout (which is what a hook's
+    pipe is) falls back to `locale.getpreferredencoding()`, not UTF-8 --
+    ladder text has em-dashes, so that mismatch mangles every injection.
+    `reconfigure` (Python >= 3.7) is the stdlib way to force it back."""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+    sys.stdout.write(text)
+
+
 def emit_context(text: str) -> None:
     """SessionStart / UserPromptSubmit: plain stdout is added as context
     directly, no JSON wrapper (verified against code.claude.com/docs/en/hooks,
     and corroborated by Ponytail's shipped ponytail-runtime.js:
     `process.stdout.write(context)` for these two events specifically)."""
     if text:
-        sys.stdout.write(text)
+        _write_utf8(text)
 
 
 def emit_hook_context(event: str, text: str) -> None:
@@ -47,7 +60,7 @@ def emit_hook_context(event: str, text: str) -> None:
     if not text:
         return
     payload = {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}
-    sys.stdout.write(json.dumps(payload))
+    _write_utf8(json.dumps(payload))
 
 
 def emit_deny(event: str, reason: str) -> None:
@@ -62,7 +75,7 @@ def emit_deny(event: str, reason: str) -> None:
             "permissionDecisionReason": reason,
         }
     }
-    sys.stdout.write(json.dumps(payload))
+    _write_utf8(json.dumps(payload))
 
 
 def safe_main(func: Callable[[dict[str, Any]], int | None]) -> int:
