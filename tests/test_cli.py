@@ -110,6 +110,25 @@ def test_card_list_with_no_decisions_dir_is_empty_not_an_error(tmp_path):
     assert json.loads(result.stdout) == []
 
 
+def test_profile_detect_hints_at_a_nested_checkbox_dir(tmp_path):
+    nested = tmp_path / "odoo" / ".checkbox"
+    nested.mkdir(parents=True)
+    (nested / "profile.json").write_text(
+        '{"schema": 1, "odoo_version": "18.0", "edition": "community", "hosting": "on-premise"}'
+    )
+
+    result = _run("profile", "detect", str(tmp_path), "--json")
+    assert result.returncode == 0
+    assert "odoo already has a checkbox profile" in result.stderr
+    assert f"checkbox profile detect {tmp_path / 'odoo'}" in result.stderr
+
+
+def test_profile_detect_silent_when_nothing_nested(tmp_path):
+    result = _run("profile", "detect", str(tmp_path), "--json")
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
 def test_ladder_render_with_known_profile():
     result = _run("ladder", "render", "--level", "full", "--root", str(PROJECT_18CE))
     assert result.returncode == 0

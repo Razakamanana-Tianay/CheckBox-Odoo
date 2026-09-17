@@ -194,6 +194,23 @@ def find_addon_roots(root: Path) -> list[str]:
     return found
 
 
+def find_nested_checkbox_dirs(root: Path) -> list[Path]:
+    """Immediate children of *root* that have their own `.checkbox/profile.json`.
+
+    `find_project_root()` only walks upward, by design (same convention as
+    git-root discovery) -- a checkout laid out as `<repo>/odoo/.checkbox/`
+    with Claude Code's cwd at `<repo>` is invisible to it. This doesn't fix
+    that; it lets a caller (e.g. `checkbox profile detect`) notice the
+    common one-level-down case and say so instead of silently returning an
+    empty profile."""
+    root = Path(root)
+    try:
+        children = [c for c in root.iterdir() if c.is_dir()]
+    except OSError:
+        return []
+    return sorted(c for c in children if (c / ".checkbox" / "profile.json").is_file())
+
+
 def detect(root: Path) -> Profile:
     """Best-effort, source-grounded detection. Never raises on a bare/partial tree."""
     root = Path(root).resolve()

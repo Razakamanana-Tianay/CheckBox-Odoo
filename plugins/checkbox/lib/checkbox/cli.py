@@ -90,6 +90,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 def cmd_profile_detect(args: argparse.Namespace) -> int:
     root = Path(args.path) if args.path else find_project_root()
     prof = profile_mod.detect(root)
+    if not prof.detected:
+        nested = profile_mod.find_nested_checkbox_dirs(root)
+        if nested:
+            names = ", ".join(str(p.relative_to(root)) for p in nested)
+            print(
+                f"note: no Odoo checkout found at {root}, but {names} already has a "
+                f"checkbox profile -- run init from there, or\n"
+                f"  `checkbox profile detect {nested[0]}`",
+                file=sys.stderr,
+            )
     _print(prof.to_dict(), args.json)
     return 0
 
