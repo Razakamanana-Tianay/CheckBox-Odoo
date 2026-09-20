@@ -1,6 +1,6 @@
 # checkbox
 
-[![CI](https://github.com/TitiRazak/CheckBox-Odoo/actions/workflows/ci.yml/badge.svg)](https://github.com/TitiRazak/CheckBox-Odoo/actions/workflows/ci.yml)
+[![CI](https://github.com/Razakamanana-Tianay/CheckBox-Odoo/actions/workflows/ci.yml/badge.svg)](https://github.com/Razakamanana-Tianay/CheckBox-Odoo/actions/workflows/ci.yml)
 
 A Claude Code plugin (plus installable adapters and a ready-to-install npm
 plugin for OpenCode, Cursor, Windsurf, GitHub Copilot and other agents) that
@@ -32,8 +32,8 @@ Code is the last resort, not the default answer.
 
 ```bash
 # Claude Code: marketplace (plugin lives in this repo)
-claude plugin marketplace add checkbox-odoo
-claude plugin install checkbox-odoo@checkbox
+claude plugin marketplace add Razakamanana-Tianay/CheckBox-Odoo
+claude plugin install checkbox@checkbox-odoo
 ```
 
 Everything below also works standalone -- the `checkbox` CLI is a single
@@ -119,8 +119,8 @@ executable.
 ## Quickstart
 
 ```bash
-claude plugin marketplace add checkbox-odoo
-claude plugin install checkbox-odoo@checkbox
+claude plugin marketplace add Razakamanana-Tianay/CheckBox-Odoo
+claude plugin install checkbox@checkbox-odoo
 cd /path/to/your/odoo/project
 claude          # run /checkbox:init once: detects version/edition/hosting, confirms, builds the index
 ```
