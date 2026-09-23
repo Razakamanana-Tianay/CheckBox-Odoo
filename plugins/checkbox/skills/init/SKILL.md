@@ -34,10 +34,13 @@ for this project.
    before running `checkbox search` for the first time in this project --
    it builds and caches a local SQLite index from the addon paths just
    confirmed, which touches disk (harmless, but still worth asking first).
-   The `docs` (odoo/documentation) and `oca` (curated OCA repos) indexes
-   described in docs/ARCHITECTURE.md §7 additionally need network access
-   and aren't implemented yet (tracked as P3 follow-up) -- say so plainly if
-   asked, rather than claiming they already run.
+   Then offer the **OCA module index** the same way:
+   `checkbox oca build --version <X.Y>` (or `--version` from the profile) —
+   it needs git, network and ~15-20 min for a one-time build of
+   `$DATA/oca/<version>.sqlite`, and it is what makes rung 5
+   ("existing OCA module") answerable instead of memory. Never run either
+   build silently, and say plainly that the `docs` (odoo/documentation)
+   index is still not implemented if asked.
 
 ## Output
 

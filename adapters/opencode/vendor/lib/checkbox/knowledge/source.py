@@ -50,7 +50,7 @@ def _iter_addon_dirs(addons_root: Path):
             yield child
 
 
-def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
+def read_manifest(manifest_path: Path) -> dict[str, Any] | None:
     try:
         tree = ast.parse(manifest_path.read_text(encoding="utf-8"))
     except (SyntaxError, OSError, UnicodeDecodeError):
@@ -185,7 +185,7 @@ def build(addons_roots: list[Path], version: str) -> list[dict[str, Any]]:
     docs: list[dict[str, Any]] = []
     for addons_root in addons_roots:
         for addon_dir in _iter_addon_dirs(Path(addons_root)):
-            manifest = _read_manifest(addon_dir / "__manifest__.py")
+            manifest = read_manifest(addon_dir / "__manifest__.py")
             if manifest is None:
                 continue
             docs.append(_manifest_doc(addon_dir, manifest, version))

@@ -24,10 +24,13 @@ profile) -- don't restate it here, that file is the single source of truth.
 3. **Climb the ladder**, stopping at the first rung that holds. For rung 2
    (standard) and rung 5 (module), evidence must come from `checkbox search`
    or delegating to the `standard-scout` agent -- never from model memory.
-   As of this plugin's current version, the index only covers `source`
-   evidence (addon manifests and `res.config.settings` fields/views) --
-   `docs`/`oca` evidence isn't indexed yet. If a search finds nothing,
-   evidence is `unverified` and the card must say so; don't guess.
+   `source` evidence (addon manifests, `res.config.settings` fields/views)
+   is always indexed. `oca` evidence exists only after
+   `checkbox oca build` has been run for the project's version -- rung 5
+   uses `checkbox search --kind oca` (add `--all-versions` to see whether a
+   module exists only on another branch). `docs` is not implemented. If a
+   search finds nothing, or no OCA catalog is built, evidence is
+   `unverified` and the card must say so; don't guess.
 4. **Hosting and edition change what's available.** Read
    `${CLAUDE_PLUGIN_ROOT}/rules/hosting.md` when the profile's hosting is
    `online` or `odoo-sh`, or the answer might assume a capability (custom
