@@ -14,8 +14,11 @@ is restated in one sentence and the code the change would touch is read.
 3. Configure — settings, groups, record rules via UI, routes, pricelists, templates.
 4. No-code — automation rules, server actions{studio_clause}. Python in a server action
    is still code and gets a risk tier.
-5. Module — an Odoo app or an OCA module on branch {version}. Third-party code is owned
-   code: its upgrade cost goes on the card.
+5. Module — an Odoo app or an OCA module on branch {version}. Evidence comes from
+   `checkbox search --kind oca`, not memory. Third-party code is owned code: note its
+   license, the repository's last-commit date (repo-level, not per module, and bot commits
+   can mask a dead module), and its upgrade cost on the card. A module that only exists on another branch (for example
+   17.0 when this project is on {version}) does not satisfy this rung.
 6. Code — only the gap, at the least invasive extension point: view/report inheritance,
    then fields, then a linked model, then `_prepare_*`/`_get_*` hook overrides with
    super(), and only then core business methods (always tier red).

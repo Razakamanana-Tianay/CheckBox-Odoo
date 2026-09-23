@@ -31,6 +31,10 @@ Field notes:
   that isn't `unverified` -- `checkbox card validate` rejects the card
   otherwise. On Online, `docs`-only evidence is sufficient (there's no
   source to read).
+- `verdict: module` with `oca` evidence: write the ref as `checkbox search`
+  prints it in `card_ref` (`OCA/<repo>/<module> branch=<ver> license=<L>
+  last_commit=<date>`); validate rejects a missing field or a branch other
+  than the project's.
 - `verdict: code` needs every `addons` entry to already be listed in the
   project's `custom_addons` (`.checkbox/profile.json`) -- validate rejects
   a path outside it.

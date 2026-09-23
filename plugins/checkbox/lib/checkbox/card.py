@@ -25,6 +25,11 @@ _EVIDENCE_KINDS = ("source", "docs", "oca", "live", "unverified")
 _TIER_REQUIRED_VERDICTS = ("code", "module")
 _EVIDENCE_REQUIRED_VERDICTS = ("standard", "config", "module")
 
+# `oca | OCA/<repo>/<module> branch=<X.Y> license=<L> last_commit=<YYYY-MM-DD|unknown>`
+# is what `checkbox search --kind oca` prints as `card_ref`.
+_OCA_REF_RE = re.compile(r"^OCA/[\w.-]+/\w+((?:\s+\w+=\S+)*)$")
+_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}|unknown)$")
+
 _FENCE_RE = re.compile(rf"```{FENCE_LANG}\n(.*?)```", re.DOTALL)
 _KEY_LINE_RE = re.compile(r"^([a-z_]+):\s*(.*)$")
 
@@ -145,6 +150,11 @@ def validate(
                 f"evidence kind must be one of {_EVIDENCE_KINDS}, got {item.get('kind')!r}"
             )
 
+    if verdict == "module":
+        for item in evidence:
+            if item.get("kind") == "oca":
+                errors.extend(_check_oca_ref(item.get("ref", ""), profile))
+
     if verdict == "code" and profile is not None:
         custom_addons = set(getattr(profile, "custom_addons", []) or [])
         for addon in card.get("addons", []):
@@ -159,4 +169,33 @@ def validate(
         pii = lint_pii(raw_text)
         errors.extend(f"possible PII: {w}" for w in pii)
 
+    return errors
+
+
+def _check_oca_ref(ref: str, profile: Any) -> list[str]:
+    """Rung-5 rule (rules/ladder.md): an OCA module must be on this project's
+    branch and the card must carry its license and repo last-commit date."""
+    hint = "use `card_ref` from `checkbox search --kind oca`"
+    match = _OCA_REF_RE.match(ref)
+    if not match:
+        return [
+            f"oca evidence {ref!r} must look like "
+            f"'OCA/<repo>/<module> branch=.. license=.. last_commit=..' ({hint})"
+        ]
+    tokens = dict(t.split("=", 1) for t in match.group(1).split())
+    errors = [
+        f"oca evidence {ref!r} is missing {key}= ({hint})"
+        for key in ("branch", "license", "last_commit")
+        if key not in tokens
+    ]
+    if "last_commit" in tokens and not _DATE_RE.match(tokens["last_commit"]):
+        errors.append(
+            f"oca evidence last_commit must be YYYY-MM-DD or unknown, got {tokens['last_commit']!r}"
+        )
+    version = getattr(profile, "odoo_version", None)
+    if version and "branch" in tokens and tokens["branch"] != version:
+        errors.append(
+            f"oca evidence is for branch {tokens['branch']}, but this project is on {version}; "
+            "a module from another branch does not satisfy rung 5"
+        )
     return errors

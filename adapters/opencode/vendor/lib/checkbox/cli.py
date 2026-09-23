@@ -16,6 +16,7 @@ from checkbox import mode as mode_mod
 from checkbox import profile as profile_mod
 from checkbox import setup as setup_mod
 from checkbox.hooks import HOOK_MAIN as _HOOK_MAIN
+from checkbox.knowledge import oca as oca_mod
 from checkbox.knowledge import search as search_mod
 from checkbox.paths import data_dir, find_project_root
 from checkbox.risk import classify as classify_mod
@@ -261,15 +262,95 @@ def cmd_search(args: argparse.Namespace) -> int:
             )
             return 1
     kinds = args.kind.split(",") if args.kind else None
-    results = search_mod.search(prof, project_root, args.query, kinds=kinds, limit=args.limit)
+    results = search_mod.search(
+        prof,
+        project_root,
+        args.query,
+        kinds=kinds,
+        limit=args.limit,
+        all_versions=args.all_versions,
+    )
     if args.json:
         print(json.dumps(results, indent=2))
         return 0
     for result in results:
+        if result["kind"] == "oca":
+            print("\n".join(oca_mod.format_evidence(result)))
+            continue
         location = result["ref"] + (f":{result['line']}" if result.get("line") else "")
         print(f"[{result['kind']}] {result['title']} -- {location}")
         if result["snippet"]:
             print(f"    {result['snippet']}")
+    return 0
+
+
+def cmd_oca_build(args: argparse.Namespace) -> int:
+    if args.version:
+        version = args.version
+    else:
+        root = Path(args.root) if args.root else find_project_root()
+        try:
+            prof = profile_mod.load(root)
+        except FileNotFoundError:
+            print("no profile -- pass --version or run /checkbox:init first", file=sys.stderr)
+            return 1
+        version = prof.odoo_version
+        if not version:
+            print("profile has no odoo_version -- pass --version explicitly", file=sys.stderr)
+            return 1
+
+    try:
+        stats = oca_mod.build(
+            version,
+            force=args.force,
+            on_progress=_bump_progress if args.progress else None,
+            data_root=args.data,
+        )
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(stats.to_dict(), indent=2))
+        return 0
+    if stats.already_built:
+        print(f"Odoo {version}: catalog already built (use --force to rebuild)")
+        print(f"catalog: {stats.db_path}")
+        return 0
+    print(
+        f"Odoo {version}: indexed {stats.modules} modules across "
+        f"{stats.repos_indexed} repos ({stats.repos_no_branch} no {version} "
+        f"branch, {stats.repos_failed} failed) in {stats.elapsed_seconds:.1f}s"
+    )
+    print(f"catalog: {stats.db_path}")
+    return 0
+
+
+def _bump_progress(seen: int, total: int, name: str, detail: str | None) -> None:
+    suffix = f" -- {detail}" if detail else ""
+    if total:
+        print(f"\r  [{seen}/{total}] {name}{suffix.ljust(40)}", end="", file=sys.stderr, flush=True)
+    if seen == total:
+        print(file=sys.stderr)
+
+
+def cmd_oca_status(args: argparse.Namespace) -> int:
+    status = oca_mod.catalog_status(data_root=args.data)
+    if args.json:
+        print(json.dumps(status, indent=2))
+        return 0
+    if not status:
+        print(
+            "no OCA catalog built yet -- run `checkbox oca build --version <X.Y>` "
+            "(builds a local index from github.com/OCA; needs git and network, ~15-20 min)"
+        )
+        return 0
+    for entry in status:
+        built = entry["built_at"] or "unknown date"
+        print(f"{entry['version']}: {entry['modules']} modules (built {built})")
+        print(f"    {entry['db_path']}")
     return 0
 
 
@@ -439,14 +520,45 @@ def build_parser() -> argparse.ArgumentParser:
     mode_set.add_argument("--json", action="store_true")
     mode_set.set_defaults(func=cmd_mode_set)
 
-    search = sub.add_parser("search", help="query the source evidence index")
+    search = sub.add_parser("search", help="query the source/OCA evidence indexes")
     search.add_argument("query")
     search.add_argument("--profile", default=None, help="path to a profile JSON file")
     search.add_argument("--root", default=None, help="project root (ignored if --profile is set)")
     search.add_argument("--kind", default=None, help="comma-separated: source,docs,oca,live")
+    search.add_argument(
+        "--all-versions",
+        action="store_true",
+        help="also search every built OCA catalog, tagging hits with their branch",
+    )
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--json", action="store_true")
     search.set_defaults(func=cmd_search)
+
+    oca_parser = sub.add_parser("oca", help="OCA module catalog index")
+    oca_sub = oca_parser.add_subparsers(dest="oca_command", required=True)
+
+    oca_build = oca_sub.add_parser(
+        "build",
+        help="build the local OCA catalog for one Odoo version (needs git + network, one-time)",
+    )
+    oca_build.add_argument("--version", default=None, help="Odoo version, e.g. 18.0")
+    oca_build.add_argument("--force", action="store_true", help="rebuild even if built")
+    oca_build.add_argument("--root", default=None, help="project root (for the profile version)")
+    oca_build.add_argument("--data", default=None, help="OCA data dir (default: <DATA>/oca)")
+    oca_build.add_argument(
+        "--progress",
+        dest="progress",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="print per-repo progress to stderr (default: on)",
+    )
+    oca_build.add_argument("--json", action="store_true")
+    oca_build.set_defaults(func=cmd_oca_build)
+
+    oca_status = oca_sub.add_parser("status", help="show built OCA catalogs")
+    oca_status.add_argument("--data", default=None, help="OCA data dir (default: <DATA>/oca)")
+    oca_status.add_argument("--json", action="store_true")
+    oca_status.set_defaults(func=cmd_oca_status)
 
     rules_parser = sub.add_parser("rules", help="risk rules")
     rules_sub = rules_parser.add_subparsers(dest="rules_command", required=True)

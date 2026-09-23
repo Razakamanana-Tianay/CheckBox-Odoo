@@ -1,12 +1,11 @@
 """Unified search: builds (or reuses) the source index, then queries it.
 
-docs.py and oca.py (odoo/documentation and curated OCA repos -- network
-clones) are deferred past this pass: their only consumer is a card's
-`evidence` field, not this module's own contract, and they need network
-access this environment has to spend carefully (~4.6GB free disk when this
-was written). `search()` accepts `kinds` already scoped to what exists
-("source") plus the values ARCHITECTURE.md §7 reserves for later so callers
-don't need to change when docs/oca land.
+docs.py (odoo/documentation -- network clones) is still deferred past this
+pass: its only consumer is a card's `evidence` field and, unlike OCA, there
+is no named need for it yet. `search()` accepts `kinds` already scoped to
+what exists ("source", plus "oca" since the OCA catalog landed) plus the
+values ARCHITECTURE.md §7 reserves for later so callers don't need to change
+when docs/live land.
 """
 
 from __future__ import annotations
@@ -16,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from checkbox import paths
+from checkbox.knowledge import oca as oca_mod
 from checkbox.knowledge import source as source_mod
 from checkbox.knowledge import store
 from checkbox.profile import Profile, resolve_addon_roots
@@ -79,13 +79,42 @@ def search(
     query: str,
     kinds: list[str] | None = None,
     limit: int = 10,
+    all_versions: bool = False,
 ) -> list[dict[str, Any]]:
-    db_path = ensure_index(profile, project_root)
-    con = store.connect(db_path)
-    try:
-        results = store.search(con, query, limit=limit)
-    finally:
-        con.close()
+    """Evidence across the built indexes.
+
+    `kinds=None` means every built kind: source (always) and oca (when a
+    catalog exists for the profile's version). Source hits come from the
+    FTS5/LIKE index; OCA hits from the per-version catalog ranker
+    (`knowledge/oca.py`), which is keyword-based and deterministic. With
+    *all_versions* the OCA search spans every built catalog and each result
+    keeps its real branch in `version` so version-only availability is an
+    explicit fact ("exists on 17.0, not on 18.0").
+    """
+    source_hits: list[dict[str, Any]] = []
+    oca_hits: list[dict[str, Any]] = []
+    if not kinds or "source" in kinds:
+        db_path = ensure_index(profile, project_root)
+        con = store.connect(db_path)
+        try:
+            source_hits = store.search(con, query, limit=limit)
+        finally:
+            con.close()
+    oca_data = paths.data_dir() / "oca"
+    if not kinds or "oca" in kinds:
+        version = profile.odoo_version
+        if all_versions:
+            oca_hits = oca_mod.search_all_versions(query, oca_data, limit=limit)
+        elif version:
+            db = oca_data / f"{version}.sqlite"
+            if db.is_file():
+                oca_hits = oca_mod.search_catalog(query, db, limit=limit)
+    # Scores from the two rankers are on different scales, so they are never
+    # compared: each kind keeps its own order and the merge alternates, so
+    # `limit` bounds the total and neither kind starves the other.
+    results: list[dict[str, Any]] = []
+    for i in range(max(len(source_hits), len(oca_hits))):
+        results.extend(hits[i] for hits in (source_hits, oca_hits) if i < len(hits))
     if kinds:
         results = [r for r in results if r["kind"] in kinds]
-    return results
+    return results[:limit]

@@ -148,3 +148,42 @@ def test_next_id_increments_past_existing_cards(tmp_path):
     (decisions / "0001-first.md").write_text("x")
     (decisions / "0007-po-approval.md").write_text("x")
     assert card_mod.next_id(decisions) == "0008"
+
+
+def _module_card(ref: str) -> dict:
+    text = (
+        SAMPLE_CARD.replace("verdict: config", "verdict: module")
+        .replace("tier: -", "tier: green")
+        .replace(
+            "evidence: source | addons/purchase/... (settings field) ; "
+            "docs | purchase approval page",
+            f"evidence: oca | {ref}",
+        )
+    )
+    return card_mod.parse(text)
+
+
+GOOD_OCA = "OCA/sale-workflow/sale_x branch=18.0 license=AGPL-3 last_commit=2025-01-01"
+
+
+def test_module_card_with_full_oca_ref_is_valid():
+    assert card_mod.validate(_module_card(GOOD_OCA), profile=Profile(odoo_version="18.0")) == []
+
+
+def test_module_card_rejects_oca_ref_without_license_or_date():
+    errors = card_mod.validate(
+        _module_card("OCA/r/m branch=18.0"), profile=Profile(odoo_version="18.0")
+    )
+    assert any("license=" in e for e in errors) and any("last_commit=" in e for e in errors)
+
+
+def test_module_card_rejects_oca_module_from_another_branch():
+    errors = card_mod.validate(
+        _module_card(GOOD_OCA.replace("18.0", "17.0")), profile=Profile(odoo_version="18.0")
+    )
+    assert any("17.0" in e and "18.0" in e for e in errors)
+
+
+def test_module_card_rejects_freeform_oca_ref_and_bad_date():
+    assert card_mod.validate(_module_card("some oca module I remember"))
+    assert card_mod.validate(_module_card(GOOD_OCA.replace("2025-01-01", "last-year")))

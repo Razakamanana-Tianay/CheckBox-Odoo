@@ -3,6 +3,15 @@
 Notable changes to `checkbox`, most recent first. Versions follow semver per
 `plugins/checkbox/.claude-plugin/plugin.json`; dates are the bump commit's date.
 
+## [1.3.0] - 2026-09-23
+
+### Added
+
+- `checkbox oca build|status` and `checkbox search --kind oca [--all-versions]`:
+  a local, per-version OCA module catalog (built from github.com/OCA via
+  sparse git clones) so ladder rung 5 is answered from evidence, with
+  license and last-commit/staleness flags. Needs `git` and network at build time only.
+
 ## [1.2.2] - 2026-09-17
 
 ### Fixed
