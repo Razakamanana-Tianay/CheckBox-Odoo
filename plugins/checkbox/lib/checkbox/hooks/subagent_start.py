@@ -17,6 +17,7 @@ from typing import Any
 from checkbox import ladder
 from checkbox import mode as mode_mod
 from checkbox.hooks.common import emit_hook_context, project_root, safe_main
+from checkbox.profile import ProfileError
 from checkbox.profile import load as load_profile
 
 
@@ -27,7 +28,7 @@ def _run(payload: dict[str, Any]) -> None:
         return
     try:
         profile = load_profile(root)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProfileError):
         return
     emit_hook_context("SubagentStart", ladder.render("lite", profile, mode=resolved_mode))
 

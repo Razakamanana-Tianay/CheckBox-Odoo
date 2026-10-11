@@ -17,6 +17,7 @@ from checkbox import mode as mode_mod
 from checkbox import session as session_mod
 from checkbox.hooks import guard
 from checkbox.hooks.common import emit_hook_context, project_root, safe_main, tool_target
+from checkbox.profile import ProfileError
 from checkbox.profile import load as load_profile
 from checkbox.risk import classify as classify_mod
 
@@ -32,7 +33,7 @@ def _run(payload: dict[str, Any]) -> None:
     profile = None
     try:
         profile = load_profile(root)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProfileError):
         return
     addon = guard.addon_for_path(root, profile, target)
     session_id = payload.get("session_id") or "unknown"

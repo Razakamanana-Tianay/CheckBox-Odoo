@@ -140,3 +140,31 @@ def test_write_output_is_pretty_json(tmp_path):
 def test_load_missing_profile_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         profile_mod.load(tmp_path)
+
+
+def test_state_dir_gitignore_is_written_once_and_never_clobbered(tmp_path):
+    from checkbox import mode as mode_mod
+    from checkbox import session as session_mod
+    from checkbox.paths import ensure_state_gitignore
+
+    mode_mod.write_local_mode(tmp_path, "lite")
+    ignore = tmp_path / ".checkbox" / ".gitignore"
+    assert ignore.read_text(encoding="utf-8").split() == ["local.json", ".session/"]
+    ignore.write_text("custom\n", encoding="utf-8")
+    session_mod.record_touched_addon(tmp_path, "s1", "mymod")
+    ensure_state_gitignore(tmp_path)
+    assert ignore.read_text(encoding="utf-8") == "custom\n"
+
+
+def test_corrupt_profile_is_a_profile_error_with_the_path(tmp_path):
+    import pytest
+    from checkbox import mode as mode_mod
+    from checkbox import profile as profile_mod
+
+    (tmp_path / ".checkbox").mkdir()
+    bad = tmp_path / ".checkbox" / "profile.json"
+    for text in ("{ broken", "[1, 2]", '{"custom_addons": "addons"}', '{"mode": 3}'):
+        bad.write_text(text, encoding="utf-8")
+        with pytest.raises(profile_mod.ProfileError, match="profile.json"):
+            profile_mod.load(tmp_path)
+    assert mode_mod.resolve(tmp_path) == "full"  # never raises: hooks call this first

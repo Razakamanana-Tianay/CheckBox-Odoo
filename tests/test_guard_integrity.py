@@ -380,3 +380,32 @@ def test_a_corrupt_profile_is_not_a_way_around_the_human_only_checks(tmp_path, c
     assert _decision(capsys) == "deny"
     pre_bash._run({"cwd": str(root), "tool_input": {"command": "checkbox approve 0001"}})
     assert _decision(capsys) == "deny"
+
+
+# -- an unreadable profile is reported, and edits wait for it -----------------
+
+
+def test_unreadable_profile_blocks_edits_until_fixed_and_says_so(tmp_path, capsys):
+    from checkbox.hooks import session_start
+
+    root = _project(tmp_path, "strict")
+    profile = root / ".checkbox" / "profile.json"
+    profile.write_text("{ broken", encoding="utf-8")
+    pre_edit._run(_edit(root))
+    out = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert out["permissionDecision"] == "deny" and "profile.json" in out["permissionDecisionReason"]
+    pre_edit._run(_edit(root, ".checkbox/profile.json"))  # the fix itself is allowed
+    assert _decision(capsys) is None
+    session_start._run({"cwd": str(root)})
+    assert "cannot be read" in capsys.readouterr().out
+    for hook in (post_edit._run, stop._run):  # the rest stay quiet, never crash
+        hook(_edit(root))
+    assert capsys.readouterr().out == ""
+
+
+def test_unreadable_profile_does_not_block_when_the_mode_is_explicitly_off(tmp_path, capsys):
+    root = _project(tmp_path, "strict")
+    (root / ".checkbox" / "profile.json").write_text("{ broken", encoding="utf-8")
+    (root / ".checkbox" / "local.json").write_text('{"mode": "off"}', encoding="utf-8")
+    pre_edit._run(_edit(root))
+    assert _decision(capsys) is None

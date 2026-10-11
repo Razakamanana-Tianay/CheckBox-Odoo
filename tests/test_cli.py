@@ -228,3 +228,13 @@ def test_documented_search_command_finds_the_stub_from_the_repo_root(tmp_path):
     )
     assert result.returncode == 0
     assert json.loads(result.stdout), "expected at least one source hit"
+
+
+def test_cli_reports_a_corrupt_profile_without_a_traceback(tmp_path, capsys):
+    from checkbox import cli
+
+    (tmp_path / ".checkbox").mkdir()
+    (tmp_path / ".checkbox" / "profile.json").write_text("{ broken", encoding="utf-8")
+    assert cli.main(["profile", "show", "--root", str(tmp_path)]) == 2
+    err = capsys.readouterr().err
+    assert "profile.json" in err and "Traceback" not in err

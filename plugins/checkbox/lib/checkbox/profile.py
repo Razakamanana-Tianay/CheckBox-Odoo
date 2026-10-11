@@ -43,6 +43,10 @@ class Profile:
         return asdict(self)
 
 
+class ProfileError(ValueError):
+    """`profile.json` exists but cannot be used (not JSON, or wrong shapes)."""
+
+
 def _profile_path(root: Path) -> Path:
     return root / ".checkbox" / "profile.json"
 
@@ -252,9 +256,23 @@ def load_file(path: Path) -> Profile:
     """Load a profile from an arbitrary JSON file -- `load()`'s
     `.checkbox/profile.json` convention is one caller of this, and
     `checkbox search --profile <file>` (repo CLAUDE.md) is another."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ProfileError(f"{path} cannot be read: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ProfileError(f"{path} cannot be read: expected a JSON object")
     known = {f for f in Profile.__dataclass_fields__}
-    return Profile(**{k: v for k, v in data.items() if k in known})
+    profile = Profile(**{k: v for k, v in data.items() if k in known})
+    # Shapes the hooks rely on; value checks stay in validate().
+    for name in ("custom_addons", "third_party_addons", "localizations"):
+        value = getattr(profile, name)
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ProfileError(f"{path} cannot be read: {name} must be a list of strings")
+    for name in ("odoo_version", "edition", "hosting", "odoo_source", "enterprise_source", "mode"):
+        if not isinstance(getattr(profile, name), (str, type(None))):
+            raise ProfileError(f"{path} cannot be read: {name} must be a string")
+    return profile
 
 
 def resolve_addon_roots(profile: Profile, project_root: Path) -> list[Path]:

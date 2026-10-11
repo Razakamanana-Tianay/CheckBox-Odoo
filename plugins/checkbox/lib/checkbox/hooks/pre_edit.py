@@ -29,6 +29,7 @@ from checkbox.hooks.common import (
     safe_main,
     tool_target,
 )
+from checkbox.profile import ProfileError
 from checkbox.profile import load as load_profile
 
 # Files the agent may not write (ARCHITECTURE §5.2; repo CLAUDE.md "Don't let
@@ -77,6 +78,16 @@ def _run(payload: dict[str, Any]) -> None:
         profile = load_profile(root)
     except FileNotFoundError:
         return  # no profile -> nothing is known to be a custom addon
+    except ProfileError as exc:
+        # Which files are custom addons is unknown, so nothing can be waved
+        # through; the profile itself (under .checkbox/) stays editable above.
+        emit_deny(
+            "PreToolUse",
+            f"checkbox: {exc}. Fix .checkbox/profile.json (or re-run /checkbox:init) "
+            "before editing project files; `checkbox mode set off` in your own terminal "
+            "turns the policy off.",
+        )
+        return
     addon = guard.addon_for_path(root, profile, target)
     if addon is None:
         return
