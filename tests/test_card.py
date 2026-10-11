@@ -97,23 +97,31 @@ def test_validate_docs_only_evidence_is_sufficient():
     assert card_mod.validate(card) == []
 
 
-def test_validate_rejects_addon_outside_custom_addons():
+def test_validate_rejects_addons_root_or_path_as_addon():
+    # `addons` names modules (what the guard resolves a file to), so a
+    # custom_addons root or a path can never authorize an edit.
     card = card_mod.parse(SAMPLE_CARD)
     card["verdict"] = "code"
     card["tier"] = "green"
-    card["addons"] = ["not_a_custom_addon"]
-    profile = Profile(custom_addons=["my_custom_addon"])
-    errors = card_mod.validate(card, profile=profile)
-    assert any("custom_addons" in e for e in errors)
+    profile = Profile(custom_addons=["addons"])
+    for bad in ("addons", "addons/my_module"):
+        card["addons"] = [bad]
+        assert any("module name" in e for e in card_mod.validate(card, profile=profile)), bad
 
 
-def test_validate_accepts_addon_inside_custom_addons():
+def test_validate_accepts_module_name_as_addon():
     card = card_mod.parse(SAMPLE_CARD)
     card["verdict"] = "code"
     card["tier"] = "green"
-    card["addons"] = ["my_custom_addon"]
-    profile = Profile(custom_addons=["my_custom_addon"])
-    assert card_mod.validate(card, profile=profile) == []
+    card["addons"] = ["my_module"]
+    assert card_mod.validate(card, profile=Profile(custom_addons=["addons"])) == []
+
+
+def test_validate_code_verdict_needs_an_addon():
+    card = card_mod.parse(SAMPLE_CARD)
+    card["verdict"] = "code"
+    card["tier"] = "green"
+    assert any("at least one module" in e for e in card_mod.validate(card))
 
 
 def test_lint_pii_flags_email():

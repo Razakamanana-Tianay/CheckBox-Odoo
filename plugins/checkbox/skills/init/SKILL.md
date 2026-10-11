@@ -26,7 +26,10 @@ for this project.
      variables.
    - Never silently accept a detected value without showing the user what
      it is and where it came from.
-3. **Write.** Once every field is confirmed, pipe the completed profile as
+3. **Write.** (If the project is already in `strict` mode, the guard denies
+   `checkbox profile write` from the agent: hand the completed JSON to the
+   user to pipe into that command in their own terminal.) Once every field
+   is confirmed, pipe the completed profile as
    JSON to `checkbox profile write` (set `confirmed_by_user: true`). It
    re-validates before saving and reports errors if anything is
    inconsistent (e.g. `hosting: online` with an `odoo_source` set).

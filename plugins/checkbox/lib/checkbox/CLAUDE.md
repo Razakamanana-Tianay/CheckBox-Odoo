@@ -43,18 +43,18 @@ mcp_server.py      (P7, shipped) optional; imports the mcp SDK lazily; exposes s
   - `verdict` is in the allowed set;
   - `tier` is required for `code` and `module`;
   - at least one non-`unverified` evidence item for `standard`, `config` and `module` (Online profiles may use `docs` only);
-  - `addons` must exist under `custom_addons` when the verdict is `code`;
+  - `addons` entries are module names (never a `custom_addons` root or a path), at least one when the verdict is `code`;
   - a best-effort PII lint rejects emails, IBANs and VAT-like tokens.
 
 ## Hook rules
 
-- Every hook entry point is wrapped in `safe_main()`. On any exception it logs to stderr, prints nothing and exits 0. The strict-mode `pre-edit` deny is the only intentional block.
+- Every hook entry point is wrapped in `safe_main()`. On any exception it logs to stderr, prints nothing and exits 0. The intentional blocks are the `pre-edit`/`pre-bash` denies and the one-time `stop` block.
 - **Output:** exactly one JSON object on stdout, or nothing at all.
   - Injection hooks use `hookSpecificOutput.additionalContext` with `hookEventName` set.
   - The PreToolUse deny uses `permissionDecision: "deny"` plus `permissionDecisionReason`, and the reason names the fix (`/checkbox:card`).
 - **Performance:** hooks never touch `knowledge/`, and never parse more than the single file named in the tool input. `tests/test_hook_perf.py` asserts p95 < 150 ms over 50 runs on the fixtures.
-- **Paths:** read `cwd` from the hook input, not `os.getcwd()`, because worktrees change it. Resolve the project root from there.
-- **Approvals file:** `pre-bash` denies any command that runs `checkbox approve`, or that writes to or moves `.checkbox/approvals.json`. This is a heuristic; document its limits in the reason text.
+- **Paths:** read `cwd` from the hook input, not `os.getcwd()`. `cwd` follows the agent's `cd`, so it is not the project root: always go through `common.project_root(payload)` (nearest ancestor with `.checkbox/`) and `common.tool_target(payload)`.
+- **Approvals file:** `pre-bash` denies any command that runs `checkbox approve`, or that writes to or moves `.checkbox/approvals.json` (a heuristic; document its limits in the reason text), and `pre-edit` denies Write/Edit on that file. In strict, both also deny changing the mode or the profile (`checkbox mode set`, `checkbox profile write`, `.checkbox/local.json`, `.checkbox/profile.json`).
 
 ## Odoo parsing rules
 

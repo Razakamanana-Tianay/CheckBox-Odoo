@@ -12,6 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from checkbox.card import _MODULE_NAME_RE
+
 
 def addon_for_path(root: Path, profile: Any, target: Path) -> str | None:
     """Return the addon name *target* belongs to when it sits under one of
@@ -24,15 +26,18 @@ def addon_for_path(root: Path, profile: Any, target: Path) -> str | None:
     own bundled addons, enterprise, third-party) is out of scope for every
     P4 guard and returns None.
     """
-    try:
-        rel = Path(target).resolve().relative_to(Path(root).resolve())
-    except ValueError:
-        return None
+    target = Path(target).resolve()
     for addon_root in getattr(profile, "custom_addons", None) or []:
-        parts = Path(addon_root).parts
-        if not parts or rel.parts[: len(parts)] != parts:
+        if not addon_root:
             continue
-        rest = rel.parts[len(parts) :]
-        if rest and rest[0]:
+        # `root / x` keeps an absolute x as is, and resolve() folds `./x`.
+        try:
+            rest = target.relative_to((Path(root) / addon_root).resolve()).parts
+        except ValueError:
+            continue
+        # A file inside a module directory. With the repo root as an addons
+        # root (`custom_addons: ["."]`), `.checkbox/` and `.git/` are not
+        # modules; the name rule is the card's own (card._MODULE_NAME_RE).
+        if len(rest) >= 2 and _MODULE_NAME_RE.match(rest[0]):
             return rest[0]
     return None

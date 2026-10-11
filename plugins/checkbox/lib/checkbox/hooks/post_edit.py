@@ -11,29 +11,24 @@ evidence index is never opened.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from checkbox import mode as mode_mod
 from checkbox import session as session_mod
 from checkbox.hooks import guard
-from checkbox.hooks.common import emit_hook_context, safe_main
+from checkbox.hooks.common import emit_hook_context, project_root, safe_main, tool_target
 from checkbox.profile import load as load_profile
 from checkbox.risk import classify as classify_mod
 
 
 def _run(payload: dict[str, Any]) -> None:
-    root = Path(payload.get("cwd") or ".").resolve()
+    root = project_root(payload, tool_target(payload))
     resolved_mode = mode_mod.resolve(root)
     if resolved_mode not in ("full", "strict"):
         return
-    tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
-    if not file_path:
+    target = tool_target(payload)
+    if target is None:
         return
-    target = Path(file_path)
-    if not target.is_absolute():
-        target = root / target
     profile = None
     try:
         profile = load_profile(root)

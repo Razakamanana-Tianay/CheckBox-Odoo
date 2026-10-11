@@ -41,7 +41,14 @@ FIXTURES = REPO_ROOT / "tests" / "fixtures" / "hooks"
 RUNS = 50
 
 
-def test_hook_p95_under_150ms():
+def test_hook_p95_under_150ms(tmp_path, monkeypatch):
+    # The payloads' cwd is repo-relative and the stop/post-edit hooks write
+    # session state, so run against a copy: the committed fixture projects
+    # must come out of a test run byte-identical.
+    import shutil
+
+    shutil.copytree(REPO_ROOT / "tests", tmp_path / "tests")
+    monkeypatch.chdir(tmp_path)
     timings: list[float] = []
     for run, (func, fixture_name) in enumerate(HOOKS * (RUNS // len(HOOKS) + 1), start=1):
         if run > RUNS:

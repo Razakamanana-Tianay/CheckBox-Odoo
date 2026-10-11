@@ -17,6 +17,7 @@ def _card(
     status="proposed",
     evidence="source | addons/purchase/models/res_config_settings.py",
 ):
+    addons = "po_approve" if verdict == "code" else "-"
     return (
         "# 0001 - test\n\n"
         "```checkbox-card\n"
@@ -26,7 +27,7 @@ def _card(
         f"verdict: {verdict}\n"
         f"evidence: {evidence}\n"
         "steps: do the thing\n"
-        "addons: -\n"
+        f"addons: {addons}\n"
         "extension_point: -\n"
         f"tier: {tier}\n"
         "upgrade_cost: none\n"
@@ -115,7 +116,7 @@ def test_covers_addon_only_counts_approved_matching_cards(tmp_path):
     _write_card(tmp_path, _card(verdict="code", tier="amber"))
     path = tmp_path / ".checkbox" / "decisions" / "0001-test.md"
     # rewrite the card to name an addon
-    path.write_text(_card().replace("addons: -", "addons: po_approve"), encoding="utf-8")
+    path.write_text(_card(verdict="code", tier="green"), encoding="utf-8")
 
     # not approved yet -> no coverage
     assert approvals.covers_addon(tmp_path, "po_approve") == []
@@ -127,12 +128,12 @@ def test_covers_addon_only_counts_approved_matching_cards(tmp_path):
 
 def test_covers_addon_drops_card_edited_after_approval(tmp_path):
     path = tmp_path / ".checkbox" / "decisions" / "0001-test.md"
-    _write_card(tmp_path, _card().replace("addons: -", "addons: po_approve"))
+    _write_card(tmp_path, _card(verdict="code", tier="green"))
     approvals.approve(tmp_path, "0001", approver="tester")
     assert approvals.covers_addon(tmp_path, "po_approve") == ["0001"]
 
     path.write_text(
-        _card().replace("addons: -", "addons: po_approve").replace("test need", "tampered"),
+        _card(verdict="code", tier="green").replace("test need", "tampered"),
         encoding="utf-8",
     )
     assert approvals.covers_addon(tmp_path, "po_approve") == []

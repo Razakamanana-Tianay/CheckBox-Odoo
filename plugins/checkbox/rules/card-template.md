@@ -15,7 +15,7 @@ profile: {version} / {edition} / {hosting}
 verdict: skip | standard | config | nocode | module | code
 evidence: kind | ref ; kind | ref   (kind: source, docs, oca, live, unverified)
 steps: click path, or the extension point + super() note for code
-addons: comma-separated custom_addons entries, or -
+addons: comma-separated module names this card authorizes changes in, or -
 extension_point: one of rules/extension-points.md's five, or -
 tier: - | green | amber | red   (required for verdict: code or module)
 upgrade_cost: none | low | medium | high, with a one-line reason
@@ -35,9 +35,10 @@ Field notes:
   prints it in `card_ref` (`OCA/<repo>/<module> branch=<ver> license=<L>
   last_commit=<date>`); validate rejects a missing field or a branch other
   than the project's.
-- `verdict: code` needs every `addons` entry to already be listed in the
-  project's `custom_addons` (`.checkbox/profile.json`) -- validate rejects
-  a path outside it.
+- `addons` lists module directory names (`my_module`), the ones that sit
+  under a `custom_addons` root from `.checkbox/profile.json` -- never the
+  root itself or a path. `verdict: code` needs at least one; in strict mode
+  only the modules listed on an approved card can be edited.
 - Never write client data into a card. `checkbox card validate` lints for
   emails, IBANs and VAT-like tokens as a courtesy check, not a guarantee.
 - `status` stays `proposed`. Only a human runs `checkbox approve NNNN` in

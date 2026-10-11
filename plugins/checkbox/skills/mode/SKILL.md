@@ -27,7 +27,11 @@ Valid levels: `off`, `lite`, `full`, `strict`. `full` is the default.
 
 ## Steps
 
-1. Run `checkbox mode set <level>`. It writes the override to
+1. If the current level is `strict`, don't run anything: in strict the
+   guard denies `checkbox mode set` (and edits to `.checkbox/local.json` /
+   `profile.json`) from the agent, so leaving strict is a human act. Tell
+   the user to run `checkbox mode set <level>` in their own terminal.
+   Otherwise run `checkbox mode set <level>`. It writes the override to
    `.checkbox/local.json`, which takes priority over the profile's own
    `mode` field for this project going forward
    (`docs/ARCHITECTURE.md` §8.5's resolution order:

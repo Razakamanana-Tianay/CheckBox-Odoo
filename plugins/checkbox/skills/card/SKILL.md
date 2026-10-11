@@ -27,12 +27,11 @@ don't retype it from memory.
 4. **Validate before finishing.** Run
    `checkbox card validate .checkbox/decisions/NNNN-slug.md`. Fix every
    error it reports -- it checks evidence sufficiency, `tier` requirements,
-   `addons` against the profile's `custom_addons`, and a best-effort PII
-   lint. Don't tell the user the card is ready until this passes.
+   that `addons` holds module names, and a best-effort PII lint. Don't tell the user the card is ready until this passes.
 5. **Never approve it.** `status` stays `proposed`. Tell the user the card
    is ready and that they approve it themselves with `checkbox approve
-   NNNN` in their own terminal -- you have no path to running that command
-   or to writing `.checkbox/approvals.json` directly.
+   NNNN` in their own terminal. Running that command or writing
+   `.checkbox/approvals.json` is denied by the guard.
 
 ## When the verdict is `code`
 

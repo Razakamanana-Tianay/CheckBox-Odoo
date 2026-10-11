@@ -28,6 +28,7 @@ _EVIDENCE_REQUIRED_VERDICTS = ("standard", "config", "module")
 # `oca | OCA/<repo>/<module> branch=<X.Y> license=<L> last_commit=<YYYY-MM-DD|unknown>`
 # is what `checkbox search --kind oca` prints as `card_ref`.
 _OCA_REF_RE = re.compile(r"^OCA/[\w.-]+/\w+((?:\s+\w+=\S+)*)$")
+_MODULE_NAME_RE = re.compile(r"^\w+$")
 _DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}|unknown)$")
 
 _FENCE_RE = re.compile(rf"```{FENCE_LANG}\n(.*?)```", re.DOTALL)
@@ -116,8 +117,9 @@ def validate(
 ) -> list[str]:
     """Return a list of error strings; empty means valid.
 
-    *profile* (a checkbox.profile.Profile, optional) is used only to check
-    `addons` against `custom_addons` when the verdict is `code`. Approval
+    *profile* (a checkbox.profile.Profile, optional) is used to reject an
+    `addons` entry that is a `custom_addons` root instead of a module, and to
+    check an `oca` ref's branch. Approval
     revalidation (hash-matches-approved-block) belongs to approvals.py, not
     here; this only validates the card's own internal consistency.
     """
@@ -155,12 +157,18 @@ def validate(
             if item.get("kind") == "oca":
                 errors.extend(_check_oca_ref(item.get("ref", ""), profile))
 
-    if verdict == "code" and profile is not None:
-        custom_addons = set(getattr(profile, "custom_addons", []) or [])
-        for addon in card.get("addons", []):
-            if addon not in custom_addons:
-                allowed = sorted(custom_addons)
-                errors.append(f"addons entry {addon!r} is not in custom_addons {allowed}")
+    # `addons` names modules -- the unit the guard resolves an edited file to
+    # (hooks/guard.py) -- never a `custom_addons` root or a path.
+    addons = card.get("addons", [])
+    roots = set(getattr(profile, "custom_addons", None) or [])
+    for addon in addons:
+        if not _MODULE_NAME_RE.match(addon) or addon in roots:
+            errors.append(
+                f"addons entry {addon!r} must be a module name (the directory under a "
+                "custom_addons root, e.g. 'my_module'), not a path or an addons root"
+            )
+    if verdict == "code" and not addons:
+        errors.append("verdict 'code' needs at least one module in addons")
 
     if status == "proposed" and "id" not in card:
         errors.append("card is missing 'id'")

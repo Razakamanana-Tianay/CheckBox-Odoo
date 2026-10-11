@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from checkbox import ladder
 from checkbox import mode as mode_mod
 from checkbox import session as session_mod
-from checkbox.hooks.common import emit_context, safe_main
+from checkbox.hooks.common import emit_context, project_root, safe_main
 from checkbox.profile import load as load_profile
 
 
 def _run(payload: dict[str, Any]) -> None:
-    root = Path(payload.get("cwd") or ".").resolve()
+    root = project_root(payload)
     session_mod.prune_stale(root)
     resolved_mode = mode_mod.resolve(root)
     if resolved_mode == "off":
