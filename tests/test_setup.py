@@ -111,3 +111,24 @@ def test_copilot_merges_into_an_existing_instructions_file(tmp_path):
     assert text.startswith("# Our team rules\nAlways use tabs.\n")
     assert "Odoo change policy (checkbox)" in text
     assert _install(tmp_path, "copilot")["files"][0]["action"] == "skip"
+
+
+def test_setup_payloads_ship_inside_the_plugin_directory():
+    """A marketplace install only copies plugins/checkbox/, so the rule files
+    `checkbox setup` installs must live there, identical to adapters/."""
+    plugin_copies = REPO_ROOT / "plugins" / "checkbox" / "adapters"
+    assert setup_mod.adapters_dir() == plugin_copies
+    for _target, source in setup_mod._RULE_FILES.values():
+        assert (plugin_copies / source).read_text(encoding="utf-8") == (
+            ADAPTERS / source
+        ).read_text(encoding="utf-8")
+
+
+def test_drift_check_covers_the_plugin_copies(tmp_path, monkeypatch):
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import build_adapters
+    import check_rule_copies
+
+    assert check_rule_copies.main() == 0
+    copies = build_adapters.build_plugin_copies()
+    assert set(copies) == {source for _t, source in setup_mod._RULE_FILES.values()}

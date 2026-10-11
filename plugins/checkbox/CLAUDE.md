@@ -10,6 +10,7 @@ bin/checkbox                  ← executable launcher; adds ../lib to sys.path, 
 bin/checkbox-hook              ← bash launcher hooks.json calls; finds a real python3/py/python, skipping the Windows Store stub (D12)
 lib/checkbox/                 ← core package
 rules/                       ← ladder.md, ladder.compact.md, hosting.md, risk/*.json
+adapters/                    ← generated copies of the rule files `checkbox setup` installs (scripts/build_adapters.py; never hand-edit)
 skills/<name>/SKILL.md       ← ladder, init, card, review, mode, help
 agents/<name>.md             ← standard-scout, ledger-reviewer
 hooks/hooks.json
