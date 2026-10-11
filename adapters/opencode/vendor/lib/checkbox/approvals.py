@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -28,6 +29,7 @@ from checkbox import profile as profile_mod
 
 _FENCE_RE = card_mod._FENCE_RE  # noqa: SLF001 -- same fence the parser uses
 _LEDGER_SUFFIX = "-ledger.md"
+_CARD_ID_RE = re.compile(r"^\d{4}$")
 
 
 def _approvals_path(root: Path) -> Path:
@@ -57,10 +59,12 @@ def card_hash(raw_text: str) -> str:
 
 
 def _card_file(root: Path, card_id: str) -> Path | None:
+    # Only `NNNN-ledger.md` itself is the report; a card slugged
+    # `NNNN-general-ledger.md` is still a card.
     matches = sorted(
         p
         for p in (Path(root) / ".checkbox" / "decisions").glob(f"{card_id}-*.md")
-        if not p.name.endswith(_LEDGER_SUFFIX)
+        if p.name != f"{card_id}{_LEDGER_SUFFIX}"
     )
     return matches[0] if matches else None
 
@@ -115,11 +119,17 @@ def approve(
     card with no sibling `NNNN-ledger.md` report (§5.2).
     """
     root = Path(root)
+    if not _CARD_ID_RE.match(card_id):
+        raise ValueError(f"card id must be a 4-digit id such as 0007, got {card_id!r}")
     card_file = _card_file(root, card_id)
     if card_file is None:
         raise ValueError(f"no card {card_id!r} found in .checkbox/decisions/")
     raw_text = card_file.read_text(encoding="utf-8")
     card = card_mod.parse(raw_text)
+    if card.get("id") != card_id:
+        raise ValueError(
+            f"{card_file.name} declares id {card.get('id')!r} in its card block, not {card_id!r}"
+        )
     profile = None
     try:
         profile = profile_mod.load(root)
@@ -140,7 +150,7 @@ def approve(
                     "cannot be approved until every evidence item is confirmed (§5.2)"
                 )
         report = Path(root) / ".checkbox" / "decisions" / f"{card_id}{_LEDGER_SUFFIX}"
-        if not report.is_file():
+        if not report.is_file() or not report.read_text(encoding="utf-8").strip():
             raise ValueError(
                 f"card {card_id} is red and has no {_LEDGER_SUFFIX} ledger-reviewer report "
                 "attached; run the review skill to produce one before approving (§5.2)"
@@ -168,6 +178,20 @@ def is_approved(root: Path, card_id: str, raw_text: str) -> bool:
     deliberately *not* approved."""
     entry = read(root).get(card_id)
     return bool(entry) and entry.get("hash") == card_hash(raw_text)
+
+
+def lists_addon(root: Path, addon: str) -> list[str]:
+    """Ids of live cards (`proposed` or `approved`, approved or not) whose
+    `addons` list includes *addon* -- "a card exists for this module"."""
+    ids: list[str] = []
+    for path in sorted((Path(root) / ".checkbox" / "decisions").glob("[0-9][0-9][0-9][0-9]-*.md")):
+        try:
+            card = card_mod.parse(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        if addon in card.get("addons", []) and card.get("status") in ("proposed", "approved"):
+            ids.append(path.name[:4])
+    return ids
 
 
 def covers_addon(root: Path, addon: str) -> list[str]:

@@ -251,7 +251,9 @@ def cmd_search(args: argparse.Namespace) -> int:
     if args.profile:
         profile_file = Path(args.profile)
         prof = profile_mod.load_file(profile_file)
-        project_root = profile_file.resolve().parent
+        # A standalone profile file's relative paths resolve like any other
+        # profile's: against the project root, not against the file's folder.
+        project_root = Path(args.root) if args.root else find_project_root()
     else:
         project_root = Path(args.root) if args.root else find_project_root()
         try:
@@ -270,6 +272,15 @@ def cmd_search(args: argparse.Namespace) -> int:
         limit=args.limit,
         all_versions=args.all_versions,
     )
+    if prof.odoo_version and (not kinds or "oca" in kinds):
+        missing = oca_mod.missing_repos(data_dir() / "oca" / f"{prof.odoo_version}.sqlite")
+        if missing:
+            print(
+                f"warning: the OCA catalog for {prof.odoo_version} is incomplete ({missing} "
+                "repos could not be fetched): a module not found here is unverified, not "
+                "absent -- run `checkbox oca build` again",
+                file=sys.stderr,
+            )
     if args.json:
         print(json.dumps(results, indent=2))
         return 0
@@ -314,7 +325,7 @@ def cmd_oca_build(args: argparse.Namespace) -> int:
         return 2
     if args.json:
         print(json.dumps(stats.to_dict(), indent=2))
-        return 0
+        return 1 if stats.repos_failed else 0
     if stats.already_built:
         print(f"Odoo {version}: catalog already built (use --force to rebuild)")
         print(f"catalog: {stats.db_path}")
@@ -325,6 +336,13 @@ def cmd_oca_build(args: argparse.Namespace) -> int:
         f"branch, {stats.repos_failed} failed) in {stats.elapsed_seconds:.1f}s"
     )
     print(f"catalog: {stats.db_path}")
+    if stats.repos_failed:
+        print(
+            f"warning: {stats.repos_failed} repos could not be fetched and are missing from "
+            "the catalog -- run `checkbox oca build` again to retry them",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -350,6 +368,11 @@ def cmd_oca_status(args: argparse.Namespace) -> int:
     for entry in status:
         built = entry["built_at"] or "unknown date"
         print(f"{entry['version']}: {entry['modules']} modules (built {built})")
+        if entry.get("repos_failed", "0") not in ("0", ""):
+            print(
+                f"    INCOMPLETE: {entry['repos_failed']} repos could not be fetched -- "
+                "run `checkbox oca build` again to retry them"
+            )
         print(f"    {entry['db_path']}")
     return 0
 
@@ -523,7 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     search = sub.add_parser("search", help="query the source/OCA evidence indexes")
     search.add_argument("query")
     search.add_argument("--profile", default=None, help="path to a profile JSON file")
-    search.add_argument("--root", default=None, help="project root (ignored if --profile is set)")
+    search.add_argument("--root", default=None, help="project root")
     search.add_argument("--kind", default=None, help="comma-separated: source,docs,oca,live")
     search.add_argument(
         "--all-versions",

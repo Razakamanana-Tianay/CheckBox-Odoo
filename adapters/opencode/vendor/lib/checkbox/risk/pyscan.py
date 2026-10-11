@@ -45,6 +45,15 @@ def _call_base_and_attr(node: ast.Call) -> tuple[str, str] | None:
     return (".".join(reversed(parts)), func.attr) if parts or isinstance(cur, ast.Name) else None
 
 
+def _referenced_name(node: ast.AST) -> str | None:
+    """`SUPERUSER_ID` and `odoo.SUPERUSER_ID` both reference the same name."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
 def _finding(rule_id: str, tier: str, path: Path, line: int, detail: str) -> dict[str, Any]:
     return {"rule_id": rule_id, "tier": tier, "file": str(path), "line": line, "detail": detail}
 
@@ -92,7 +101,9 @@ def _scan_call(node: ast.Call, rules: dict[str, Any], path: Path) -> dict[str, A
     if rule is None:
         return None
     restrict = rule.get("on_attribute_of")
-    if restrict is not None and base not in restrict:
+    # Suffix match: the cursor is reached through any record or request
+    # (`move.env.cr`, `request.env.cr`), not only `self`.
+    if restrict is not None and not any(base == r or base.endswith("." + r) for r in restrict):
         return None
     return _finding(
         f"python_call:{attr}", rule["tier"], path, node.lineno, rule.get("detail", attr)
@@ -155,11 +166,11 @@ def scan(path: Path, rules: dict[str, Any]) -> list[dict[str, Any]]:
             found = _scan_call(node, rules, path)
             if found:
                 findings.append(found)
-        elif isinstance(node, ast.Name) and node.id in rules.get("python_names", {}):
-            rule = rules["python_names"][node.id]
+        elif (name := _referenced_name(node)) in rules.get("python_names", {}):
+            rule = rules["python_names"][name]
             findings.append(
                 _finding(
-                    f"python_name:{node.id}",
+                    f"python_name:{name}",
                     rule["tier"],
                     path,
                     node.lineno,

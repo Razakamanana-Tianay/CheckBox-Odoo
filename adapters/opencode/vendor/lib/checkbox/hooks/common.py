@@ -9,9 +9,11 @@ plugins/checkbox/CLAUDE.md's "Before changing any output shape" rule.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 
@@ -28,6 +30,39 @@ def read_stdin_json() -> dict[str, Any]:
         return json.loads(raw)
     except json.JSONDecodeError:
         return {}
+
+
+def project_root(payload: dict[str, Any], target: Path | None = None) -> Path:
+    """The project root for a hook payload: the nearest directory holding
+    `.checkbox/`, looked for at or above, in order, *target* (the file being
+    edited), the payload's `cwd`, then `$CLAUDE_PROJECT_DIR`. Falls back to
+    `cwd`.
+
+    `cwd` alone is not the project root: it "is the new directory after
+    Claude runs `cd`", while `CLAUDE_PROJECT_DIR` stays "the project root
+    where the session started" and is exported to hook processes
+    (code.claude.com/docs/en/hooks, 2026-10-11). Treating `cwd` as the root
+    made every hook a silent no-op after one `cd`.
+    """
+    cwd = Path(payload.get("cwd") or ".").resolve()
+    starts = [target.parent if target else None, cwd]
+    if os.environ.get("CLAUDE_PROJECT_DIR"):
+        starts.append(Path(os.environ["CLAUDE_PROJECT_DIR"]).resolve())
+    for start in starts:
+        for candidate in (start, *start.parents) if start else ():
+            if (candidate / ".checkbox").is_dir():
+                return candidate
+    return cwd
+
+
+def tool_target(payload: dict[str, Any]) -> Path | None:
+    """Absolute path of the file a Write/Edit payload names, or None.
+    A relative `file_path` is relative to `cwd`, not to the project root."""
+    tool_input = payload.get("tool_input") or {}
+    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
+    if not file_path:
+        return None
+    return (Path(payload.get("cwd") or ".") / file_path).resolve()
 
 
 def _write_utf8(text: str) -> None:

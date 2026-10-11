@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -29,7 +30,9 @@ def _default() -> dict[str, Any]:
 
 
 def _session_path(root: Path, session_id: str) -> Path:
-    return Path(root) / ".checkbox" / ".session" / f"{session_id}.json"
+    # session_id arrives from the hook payload: keep it a plain file name.
+    safe = re.sub(r"[^\w.-]", "_", session_id) or "unknown"
+    return Path(root) / ".checkbox" / ".session" / f"{safe}.json"
 
 
 def load(root: Path, session_id: str) -> dict[str, Any]:

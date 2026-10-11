@@ -2,6 +2,9 @@
 
 §8.2 row: PreToolUse, matcher Write|Edit. Levels: full, strict.
 
+- **every level:** deny any write to `.checkbox/approvals.json`.
+- **strict:** also deny writes to `.checkbox/local.json` and `profile.json`
+  (the two files that can switch this guard off).
 - **strict:** deny an edit under `custom_addons` when no *approved* card
   lists that addon (permissionDecision "deny", reason names the fix).
 - **full:** allow it, and inject a reminder when no approved card covers
@@ -19,22 +22,57 @@ from typing import Any
 from checkbox import approvals
 from checkbox import mode as mode_mod
 from checkbox.hooks import guard
-from checkbox.hooks.common import emit_deny, emit_hook_context, safe_main
+from checkbox.hooks.common import (
+    emit_deny,
+    emit_hook_context,
+    project_root,
+    safe_main,
+    tool_target,
+)
 from checkbox.profile import load as load_profile
+
+# Files the agent may not write (ARCHITECTURE §5.2; repo CLAUDE.md "Don't let
+# the agent approve cards ... by any path"). approvals.json is human-only at
+# every level, `off` included; the two files that can switch the guard off
+# are protected only where there is a guard to switch off (strict).
+_PROTECTED = {"local.json": ("strict",), "profile.json": ("strict",)}
+
+
+def _protected_reason(target: Path, mode: str) -> str | None:
+    if target.name == "approvals.json":
+        return (
+            ".checkbox/approvals.json is written only by a human running "
+            "`checkbox approve <id>` in their own terminal (§5.2)."
+        )
+    if mode in _PROTECTED.get(target.name, ()):
+        return (
+            f"strict mode: .checkbox/{target.name} decides whether the guard applies, so "
+            "only a human changes it, in their own terminal "
+            "(`checkbox mode set <level>` / `checkbox profile write`)."
+        )
+    return None
 
 
 def _run(payload: dict[str, Any]) -> None:
-    root = Path(payload.get("cwd") or ".").resolve()
+    target = tool_target(payload)
+    if target is None:
+        return
+    # Checked before the mode gate, and before anything that reads project
+    # files (a corrupt profile.json must not be a way around it):
+    # approvals.json is human-only at every level.
+    in_state_dir = target.parent.name == ".checkbox"
+    if in_state_dir and target.name == "approvals.json":
+        emit_deny("PreToolUse", _protected_reason(target, "off"))
+        return
+    root = project_root(payload, target)
     resolved_mode = mode_mod.resolve(root)
+    if in_state_dir:
+        reason = _protected_reason(target, resolved_mode)
+        if reason:
+            emit_deny("PreToolUse", reason)
+        return
     if resolved_mode not in ("full", "strict"):
         return
-    tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
-    if not file_path:
-        return
-    target = Path(file_path)
-    if not target.is_absolute():
-        target = root / target
     try:
         profile = load_profile(root)
     except FileNotFoundError:

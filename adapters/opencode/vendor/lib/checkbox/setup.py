@@ -15,7 +15,7 @@ scripts/build_adapters.py's docstring):
 - cursor:   .cursor/rules/checkbox.mdc
 - windsurf: .windsurf/rules/checkbox.md  (legacy documented path; see the
             generated rule file's copy note for .devin/rules/)
-- copilot:  .github/copilot-instructions.md
+- copilot:  .github/copilot-instructions.md, merged if it already exists
 - opencode: AGENTS.md (repo root), merged if it already exists
 """
 
@@ -35,7 +35,12 @@ _RULE_FILES: dict[str, tuple[str, str]] = {
     "opencode": ("AGENTS.md", "AGENTS.md"),
 }
 
-# Heading that marks the generated section inside a merged AGENTS.md.
+# Hosts whose rule file is one the project may already own (a team's
+# AGENTS.md or copilot-instructions.md): merged into, never overwritten.
+# Cursor and Windsurf get a file named after checkbox, safe to replace.
+_SHARED_FILE_HOSTS = ("opencode", "copilot")
+
+# Heading that marks the generated section inside a merged file.
 _AGENTS_HEADING = "Odoo change policy (checkbox)"
 
 
@@ -84,9 +89,9 @@ def install(
     existed = target.is_file()
     existing = target.read_text(encoding="utf-8") if existed else None
 
-    if existed and host == "opencode" and _AGENTS_HEADING in existing:
+    if existed and host in _SHARED_FILE_HOSTS and _AGENTS_HEADING in existing:
         action, applied = "skip", existing
-    elif existed and host == "opencode":
+    elif existed and host in _SHARED_FILE_HOSTS:
         action, applied = "append", existing.rstrip("\n") + "\n\n" + content
     elif existed:
         action, applied = "overwrite", content

@@ -34,14 +34,14 @@ def _scan_xml_records(root: ET.Element, rules: dict[str, Any], path: Path) -> li
             findings.append(
                 _finding("xml:ir.model.access", rule["tier"], path, None, rule.get("detail", ""))
             )
-        if record.get("noupdate") == "1" and "noupdate_data" in xml_rules:
-            rule = xml_rules["noupdate_data"]
-            findings.append(
-                _finding("xml:noupdate", rule["tier"], path, None, rule.get("detail", ""))
-            )
-    if root.get("noupdate") == "1" and "noupdate_data" in xml_rules:
+    # `noupdate` sits on `<data>` (the usual form), on `<odoo>`, or on a record.
+    if "noupdate_data" in xml_rules:
         rule = xml_rules["noupdate_data"]
-        findings.append(_finding("xml:noupdate", rule["tier"], path, None, rule.get("detail", "")))
+        for el in root.iter():
+            if el.get("noupdate") in ("1", "true", "True"):
+                findings.append(
+                    _finding("xml:noupdate", rule["tier"], path, None, rule.get("detail", ""))
+                )
 
     for tag in ("menuitem", "act_window", "button"):
         for el in root.iter(tag):
@@ -63,8 +63,11 @@ def scan_xml(path: Path, rules: dict[str, Any]) -> list[dict[str, Any]]:
     path = Path(path)
     try:
         root = ET.parse(path).getroot()
-    except (ET.ParseError, OSError):
+    except OSError:
         return []
+    except ET.ParseError as exc:
+        # Same as an unparseable .py file: unknown is not green.
+        return [_finding("parse-error", "amber", path, exc.position[0], str(exc))]
     return _scan_xml_records(root, rules, path)
 
 
