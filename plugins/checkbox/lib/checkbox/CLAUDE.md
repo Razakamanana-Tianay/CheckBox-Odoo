@@ -14,7 +14,7 @@ mode.py            resolve(): CHECKBOX_MODE > .checkbox/local.json > profile.mod
 ladder.py          render(level, profile) from rules/ladder.md + ladder.compact.md
 card.py            parse(md) / validate(card, profile, approvals) / next_id(dir)
 approvals.py       approve(card_id) (human CLI only), is_approved(card), card_hash(block)
-session.py         .checkbox/.session/<session_id>.json read/update (touched addons, stop blocks)
+session.py         .checkbox/.session/<session_id>.json read/update (touched addons, highest classified tier per addon, stop blocks)
 risk/
   rules.py         load common.json + version overlay; verify(version, odoo_src)
   pyscan.py        ast visitor → findings

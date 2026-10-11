@@ -48,7 +48,7 @@ plugins/checkbox/               ← the plugin (see its CLAUDE.md)
   skills/ agents/ hooks/ bin/
   evals/                        ← claude plugin eval suite (see its CLAUDE.md)
 adapters/                       ← generated files for other agents (see its CLAUDE.md)
-scripts/                        ← build_adapters.py, check_rule_copies.py
+scripts/                        ← build_adapters.py, check_rule_copies.py, fetch_rule_sources.py
 tests/                          ← pytest; fixtures/stubs are tiny fake Odoo trees
 ```
 
@@ -71,6 +71,8 @@ plugins/checkbox/bin/checkbox profile detect tests/fixtures/stubs/odoo18-ce --js
 plugins/checkbox/bin/checkbox search "purchase approval" --profile tests/fixtures/profiles/18-ce.json --json
 plugins/checkbox/bin/checkbox classify tests/fixtures/diffs/move_post_override.py --json
 plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC"
+# no checkout? fetch only the files the overlay cites, then verify against them:
+python3 scripts/fetch_rule_sources.py --version 19.0 --dest .odoo-src/19.0
 
 # hook dry-runs (stdin payloads in tests/fixtures/hooks/)
 # SessionStart/UserPromptSubmit print plain text, not JSON:

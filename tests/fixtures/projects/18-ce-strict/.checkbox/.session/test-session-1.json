@@ -2,6 +2,8 @@
   "touched_addons": [
     "po_approve"
   ],
-  "cards_seen": [],
+  "classified_tiers": {
+    "po_approve": "red"
+  },
   "stop_block_count": 0
 }

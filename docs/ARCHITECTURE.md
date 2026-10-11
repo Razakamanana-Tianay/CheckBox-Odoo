@@ -172,7 +172,8 @@ Context, rejected options, open questions (free text).
 - The agent may only create cards with `status: proposed`.
 - **Approval is a human act.** The human runs `checkbox approve 0007` in their own terminal. This writes `.checkbox/approvals.json` with the card id, a hash of the card block, the git user and a timestamp.
 - Editing an approved card invalidates its approval, because the hash changes.
-- A 🔴 card cannot be approved while any evidence is `unverified`, or without a `ledger-reviewer` report attached.
+- A 🔴 card cannot be approved while any evidence is `unverified`, or without a non-empty `ledger-reviewer` report attached.
+- **The tier is checked, not trusted.** `checkbox approve` classifies the code that already exists in the card's modules and refuses a card declaring a lower tier. After approval, `post-edit` flags an edit that classifies above the card, and `Stop` blocks once for it; raising the card's tier voids the approval, which in strict stops further edits until a human signs again.
 
 ## 6. Risk tiers
 
@@ -197,12 +198,18 @@ A red change requires three things:
   - classes with `_inherit`/`_name` in the risk model set;
   - methods defined on those classes whose names appear in the method list for that model and version;
   - calls to `sudo`, `with_user` and `execute` on any cursor (`cr`, `_cr`, `<anything>.env.cr`);
+  - `env(su=True)`;
+  - `write`/`create`/`unlink` reached through `env['<risk model>']`;
+  - a risk-method name assigned over on a class (monkeypatch);
+  - stored computed fields (`fields.X(compute=..., store=True)`, amber);
   - `SUPERUSER_ID`;
   - controller decorators with `auth='public'`/`'none'` or `csrf=False`.
 - **XML/CSV files:** the classifier detects:
   - `ir.rule` records;
   - `ir.model.access` changes;
-  - `groups` changes on menus and actions;
+  - `groups` changes on menus and actions (attribute or `groups_id` field);
+  - `ir.cron`, `ir.actions.server` and `base.automation` records;
+  - `<delete>` and `<function>` (red on a risk model or `ir.rule`);
   - `noupdate` data (on `<odoo>`, `<data>` or a record).
 
   A file that does not parse (Python or XML) is amber, never green.
@@ -225,7 +232,7 @@ A red change requires three things:
 }
 ```
 
-**Verification rule.** Every model and method entry is checked by `checkbox rules verify --version X --odoo-src PATH`. The command fails if the model or method is not defined in the referenced source file. No entry is merged without passing this check, which is what keeps model-memory hallucinations out of the risk data.
+**Verification rule.** Every model and method entry is checked by `checkbox rules verify --version X --odoo-src PATH` (CI runs it for 17.0, 18.0 and 19.0 on the files `scripts/fetch_rule_sources.py` downloads). The command fails if the model or method is not defined in the referenced source file. No entry is merged without passing this check, which is what keeps model-memory hallucinations out of the risk data.
 
 ## 7. Knowledge layer: evidence for "is it standard?"
 
@@ -233,7 +240,7 @@ A red change requires three things:
 
 | Kind | Source | How it is indexed | Where the index lives |
 |---|---|---|---|
-| `source` | The project's Odoo (and Enterprise) addons paths from the profile | The **feature index**: manifests (name, summary, category, depends), `res.config.settings` fields and their labels, settings view blocks (titles and help), model `_description`, menu names | `$DATA/source/<hash(paths+version)>.sqlite` |
+| `source` | The project's Odoo (and Enterprise) addons paths from the profile | The **feature index**: manifests (name, summary, category, depends), `res.config.settings` fields of any type and their labels, settings view blocks (titles and help), model `_description`, menu names | `$DATA/source/<hash(paths+version)>.sqlite` |
 | `docs` (not built) | `odoo/documentation`, branch = version, `content/applications/**` | Sparse shallow clone, sections split by heading | `$DATA/docs/<version>.sqlite` |
 | `oca` | `github.com/OCA` org, repo branch = version | Org-repo enumeration (3 GitHub API calls, cached in `$DATA/oca/repos.json`) + per-repo `git clone --depth 1 --filter=blob:none --sparse --branch <ver>` touching only `*/__manifest__.py`; manifest fields (name, summary, development_status, maintainers) + tip commit date (`git log -1 --format=%cs`); deterministic keyword ranker (`knowledge/oca.py`) | `$DATA/oca/<version>.sqlite` |
 | `live` (not built) | Any read-only Odoo MCP server | Installed modules, settings values | Not cached |
@@ -244,7 +251,7 @@ A red change requires three things:
 
 ### 7.2 Storage and search
 
-- **Engine:** SQLite FTS5 when the Python build supports it, otherwise a `LIKE` fallback. The core checks this at runtime.
+- **Engine:** SQLite FTS5 when the Python build supports it, otherwise a `LIKE` fallback. The core checks this at runtime. FTS matching is stemmed (`porter`) and prefix-based; a query first needs every term, then falls back to any term. An index is built beside the old one and swapped in.
 - **Location:** `$DATA` is `CHECKBOX_DATA_DIR`, else `CLAUDE_PLUGIN_DATA`, else `~/.cache/checkbox`.
 - **Licensing:** indexes are built locally and never shipped. Odoo documentation is CC BY-SA; Odoo Community source is LGPL-3.
 - **CLI:** `checkbox search "<query>" [--kind source,docs,oca] [--profile PATH] [--all-versions] [--json]` · `checkbox oca build|status [--version X.Y] [--force] [--data PATH] [--json]`
@@ -352,7 +359,10 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
     `python3`, no install step).
 - **One-command install:** `checkbox setup <host> --project <dir> [--dry-run]`
   copies/merges the generated rule files into a project for `opencode`
-  (`AGENTS.md`, merged not clobbered), `cursor`, `windsurf` and `copilot`.
+  (`AGENTS.md`) and `copilot` (both merged, never clobbered), `cursor` and
+  `windsurf`. The four files are also generated into
+  `plugins/checkbox/adapters/`, which is where `setup` reads them: a
+  marketplace install copies nothing outside the plugin root.
   The opencode npm plugin covers the "no file to copy" case -- `opencode2
   plugin add checkbox-odoo` or a `"plugin": ["file:…/adapters/opencode"]`
   entry in `opencode.json`.
@@ -487,6 +497,7 @@ Each phase follows explore → plan → implement → verify, and ends only when
 | D13 | `plugins/checkbox/.mcp.json`'s hardcoded `venv/bin/python3` stays as-is for Windows; no in-repo fix attempted. `checkbox doctor`'s `mcp_venv` check gains a Windows-only note naming the actual `venv\Scripts\python.exe` path and telling the user to register `checkbox-mcp` in their own project/user MCP config instead | Investigated a `"command": "python3"` (bare, PATH-resolved) bootstrap that would re-exec into the OS-correct venv path computed in Python (`cli.py`'s existing `sys.platform` ternary) -- rejected because it inherits D12's exact problem: on the Windows machine D12 was verified against, nothing on PATH answered to `python3`/`python` except the Store alias stub, which can't run the re-exec logic that would fix it. `py` (the Windows Python Launcher, D12's actual working fallback) is Windows-only naming, so no single command string is uniform across OSes. D12's fix doesn't transfer because MCP server commands are spawned with no shell and Claude Code has no per-OS command field (verified against code.claude.com/docs, 2026-09-17) -- unlike `hooks.json`, there's no shell-form escape hatch to run a `$PATH`-walk in first | Claude Code adds a supported per-OS MCP command field, or a real Windows non-Claude-host user needs `checkbox-mcp` badly enough to justify a manual per-machine `.mcp.json` edit becoming a documented setup step instead of a `doctor` note |
 | D15 | The OCA catalog is built from `github.com/OCA` via git partial clones (`--depth 1 --filter=blob:none --sparse`, branch = Odoo version, checkout pattern `*/__manifest__.py`), stored locally as `$DATA/oca/<version>.sqlite`, and searched with a deterministic keyword ranker (technical name +3 / display name +2 / summary +1 / category+depends +1 / prefix +0.5, exact technical-name query = 1000) -- not embeddings, not a third-party package | D10's "real network+disk cost" reason was measured away: a `sale-workflow@18.0` partial clone transfers ~1 MB / checks out ~1.8 MB, well under a full shallow clone's footprint, and `git log -1 --format=%cs` yields the last-commit-date maintenance flag for free. PyPI was probed and rejected (versioned-suffix `odoo-addon-<name>-<ver>` packages 404, no prefix-search API, no dev-status/commit date, coverage derived and partial); apps.odoo.com is JS-rendered (zero module links in HTML, module pages 301). Branch existence (`git ls-remote --heads --exit-code`) is the version-availability fact, making "exists on 17.0 but not 18.0" an explicit search result via `--all-versions`. GitHub's org-repos API is only ever hit 3 times per build and the result is cached (`$DATA/oca/repos.json`), so a rebuild never pays the rate limit; content transfers ride the git protocol, which is rate-limit-free. `git` is required only at build time; search is stdlib-only | A maintained config repo for OCA repositories proves more current than the GitHub org API, or an evaluator wants free-text relevance (embeddings) tested against the keyword baseline |
 | D16 | The guard's trust boundary is the three `.checkbox/` files and the project root, not only `custom_addons`: `pre-edit` denies Write/Edit on `approvals.json` (every level, `off` included, and before any project file is read) and on `local.json`/`profile.json` (strict); `pre-bash` denies `checkbox mode set` and `checkbox profile write` and shell writes to those two files in strict; every hook resolves the project root as the nearest `.checkbox/` at or above the edited file, then `cwd`, then `$CLAUDE_PROJECT_DIR`. A card's `addons` are module names, the unit the guard resolves a file to | Found in the 2026-10-11 review, each reproduced first: a valid `code` card could never unblock a strict edit (validation wanted an addons root, the guard a module name); the agent could write `approvals.json` or set the mode to `off` with the Write tool; and one `cd` made every hook a no-op because `cwd` follows `cd` (hooks reference, 2026-10-11). Leaving strict is therefore a human act, like approval (D6). Still a speed bump (§8.6): an agent with Bash can write files without the file tools | Claude Code gives plugins a way to protect paths declaratively |
+| D17 | An unreadable `profile.json` (not JSON, or wrong shapes) holds project edits in `pre-edit` until it is fixed, instead of failing open | With the profile unreadable, which files are custom addons and whether the project is in strict are both unknown, and failing open made a one-character edit to the profile a way out of strict. It is a deny with a reason that names the fix, not a crash: non-negotiable #4 (crashes exit 0 silently) still holds for every unexpected exception. `.checkbox/` stays editable so the file can be repaired, and an explicit `off` in `local.json` or `CHECKBOX_MODE` still switches everything off | The deny proves noisy for projects that never used strict |
 
 ## 15. Open questions (resolve in P0)
 
@@ -572,4 +583,4 @@ Paths are relative to the project root. `odoo_source` is `null` on Online.
 - `profile.json`: committed.
 - `decisions/`: committed.
 - `approvals.json`: committed.
-- `local.json` and `.session/`: gitignored.
+- `local.json` and `.session/`: gitignored, by a `.checkbox/.gitignore` checkbox writes with the first of them.

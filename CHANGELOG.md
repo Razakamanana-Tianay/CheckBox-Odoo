@@ -16,7 +16,27 @@ Notable changes to `checkbox`, most recent first. Versions follow semver per
   build again retries only the repos that failed (exit 1 while any are missing).
   `oca status` and `search` say so when a catalog is incomplete.
 
+- Risk rules for nine more ledger models (`account.move.line`,
+  `account.payment`, `account.tax`, `account.partial.reconcile`,
+  `account.bank.statement.line`, `stock.move.line`, `stock.quant`,
+  `stock.valuation.layer` on 17.0/18.0, `ir.sequence`), each verified against
+  Odoo source, and detectors for stored computes, `env(su=True)`,
+  monkeypatched core methods, ORM writes to a ledger model, crons, server
+  actions and automation rules, `<delete>`/`<function>`.
+- `checkbox search` matches stems and prefixes ("manager approval" finds
+  "managers ... approve") and falls back to any term; settings fields of
+  every type are indexed.
+
 ### Changed
+
+- The card's `tier` is checked against the classifier: sign-off refuses a
+  card below the tier of the code it covers, and an edit that classifies
+  above its card is flagged and blocks the stop once.
+- An unreadable `.checkbox/profile.json` holds project edits until it is
+  fixed and is reported at session start; the CLI exits 2 with one line
+  instead of a traceback.
+- checkbox writes `.checkbox/.gitignore` (`local.json`, `.session/`) with the
+  first local state file.
 
 - A card's `addons` field lists **module names** (`my_module`), not
   `custom_addons` roots. Cards written with a root there no longer validate;
@@ -46,6 +66,9 @@ Notable changes to `checkbox`, most recent first. Versions follow semver per
 - Classifier: raw SQL through `request.env.cr`/`record.env.cr`,
   `odoo.SUPERUSER_ID`, and `<data noupdate="1">` were missed; unparseable XML
   was green.
+- `checkbox setup` failed on a marketplace install (its rule files lived
+  outside the plugin); they now ship in `plugins/checkbox/adapters/`.
+- `checkbox oca build` no longer signals a pid from its lock on Windows.
 - `checkbox search` built an empty index when a relative `odoo_source` was
   used from a subdirectory.
 
