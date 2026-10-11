@@ -428,6 +428,22 @@ OUTPUTS: dict[str, object] = {
 }
 
 
+# The rule files `checkbox setup` installs. They are also written inside the
+# plugin, since a marketplace install copies nothing outside plugins/checkbox/.
+PLUGIN_COPIES = (
+    "AGENTS.md",
+    "cursor/checkbox.mdc",
+    "windsurf/checkbox.md",
+    "copilot/copilot-instructions.md",
+)
+PLUGIN_COPIES_DIR = PLUGIN_DIR / "adapters"
+
+
+def build_plugin_copies() -> dict[str, str]:
+    """{relative_path: content} for plugins/checkbox/adapters/."""
+    return {rel_path: OUTPUTS[rel_path]() for rel_path in PLUGIN_COPIES}
+
+
 def build() -> dict[str, str]:
     """Render every adapter. Returns {relative_path: content} without writing
     anything -- callers decide whether to write to disk (build) or diff
@@ -454,6 +470,12 @@ def main(argv: list[str] | None = None) -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(content, encoding="utf-8")
         print(f"wrote {dest.relative_to(REPO_ROOT) if dest.is_relative_to(REPO_ROOT) else dest}")
+    if output_dir == REPO_ROOT / "adapters":
+        for rel_path, content in build_plugin_copies().items():
+            dest = PLUGIN_COPIES_DIR / rel_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+            print(f"wrote {dest.relative_to(REPO_ROOT)}")
     return 0
 
 

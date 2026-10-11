@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -27,7 +29,9 @@ from checkbox import card as card_mod
 from checkbox import profile as profile_mod
 
 _FENCE_RE = card_mod._FENCE_RE  # noqa: SLF001 -- same fence the parser uses
+TIER_ORDER = {"green": 0, "amber": 1, "red": 2}
 _LEDGER_SUFFIX = "-ledger.md"
+_CARD_ID_RE = re.compile(r"^\d{4}$")
 
 
 def _approvals_path(root: Path) -> Path:
@@ -57,10 +61,12 @@ def card_hash(raw_text: str) -> str:
 
 
 def _card_file(root: Path, card_id: str) -> Path | None:
+    # Only `NNNN-ledger.md` itself is the report; a card slugged
+    # `NNNN-general-ledger.md` is still a card.
     matches = sorted(
         p
         for p in (Path(root) / ".checkbox" / "decisions").glob(f"{card_id}-*.md")
-        if not p.name.endswith(_LEDGER_SUFFIX)
+        if p.name != f"{card_id}{_LEDGER_SUFFIX}"
     )
     return matches[0] if matches else None
 
@@ -83,21 +89,14 @@ def _write_atomic(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
-        with open(tmp_name, "w", encoding="utf-8") as handle:
+        # fdopen, not open(tmp_name): mkstemp's descriptor must be the one that
+        # gets closed, or Windows refuses the rename below (WinError 32).
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2, sort_keys=True)
             handle.write("\n")
-        os_replace(tmp_name, path)
+        os.replace(tmp_name, path)
     finally:
         Path(tmp_name).unlink(missing_ok=True)
-
-
-def os_replace(src: str, dst: Path) -> None:
-    """Swap *src* over *dst*. Split out so tests can monkeypatch the rename
-    and so the import stays stdlib-only (os.replace is imported lazily to
-    keep this module's failed-hook path free of any syscalls on import)."""
-    import os
-
-    os.replace(src, dst)
 
 
 def approve(
@@ -115,11 +114,17 @@ def approve(
     card with no sibling `NNNN-ledger.md` report (§5.2).
     """
     root = Path(root)
+    if not _CARD_ID_RE.match(card_id):
+        raise ValueError(f"card id must be a 4-digit id such as 0007, got {card_id!r}")
     card_file = _card_file(root, card_id)
     if card_file is None:
         raise ValueError(f"no card {card_id!r} found in .checkbox/decisions/")
     raw_text = card_file.read_text(encoding="utf-8")
     card = card_mod.parse(raw_text)
+    if card.get("id") != card_id:
+        raise ValueError(
+            f"{card_file.name} declares id {card.get('id')!r} in its card block, not {card_id!r}"
+        )
     profile = None
     try:
         profile = profile_mod.load(root)
@@ -131,6 +136,18 @@ def approve(
     if card.get("status") != "proposed":
         raise ValueError(f"card {card_id} status is {card.get('status')!r}, not 'proposed'")
 
+    # The tier is not taken on trust: code that already exists in the listed
+    # modules is classified, and a card declaring less cannot be signed off.
+    declared = card.get("tier", "-") if card.get("tier", "-") in TIER_ORDER else "green"
+    for module in card.get("addons", []) if profile is not None else []:
+        finding = _module_finding(root, profile, module, profile.odoo_version or "18.0")
+        if finding and TIER_ORDER[finding["tier"]] > TIER_ORDER[declared]:
+            raise ValueError(
+                f"card {card_id} declares tier {declared}, but module {module!r} classifies "
+                f"{finding['tier']} ({finding['rule_id']} in {Path(finding['file']).name}); "
+                "raise the card's tier to match first (§6.2)"
+            )
+
     ledger_report: str | None = None
     if card.get("tier") == "red":
         for item in card.get("evidence", []):
@@ -140,7 +157,7 @@ def approve(
                     "cannot be approved until every evidence item is confirmed (§5.2)"
                 )
         report = Path(root) / ".checkbox" / "decisions" / f"{card_id}{_LEDGER_SUFFIX}"
-        if not report.is_file():
+        if not report.is_file() or not report.read_text(encoding="utf-8").strip():
             raise ValueError(
                 f"card {card_id} is red and has no {_LEDGER_SUFFIX} ledger-reviewer report "
                 "attached; run the review skill to produce one before approving (§5.2)"
@@ -168,6 +185,59 @@ def is_approved(root: Path, card_id: str, raw_text: str) -> bool:
     deliberately *not* approved."""
     entry = read(root).get(card_id)
     return bool(entry) and entry.get("hash") == card_hash(raw_text)
+
+
+def _live_cards(root: Path, addon: str) -> list[tuple[str, dict[str, Any]]]:
+    """(id, card) for every live card (`proposed` or `approved`, signed off
+    or not) whose `addons` list includes *addon*."""
+    cards: list[tuple[str, dict[str, Any]]] = []
+    for path in sorted((Path(root) / ".checkbox" / "decisions").glob("[0-9][0-9][0-9][0-9]-*.md")):
+        try:
+            card = card_mod.parse(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        if addon in card.get("addons", []) and card.get("status") in ("proposed", "approved"):
+            cards.append((path.name[:4], card))
+    return cards
+
+
+def lists_addon(root: Path, addon: str) -> list[str]:
+    """Ids of the live cards listing *addon* -- "a card exists for this module"."""
+    return [card_id for card_id, _card in _live_cards(root, addon)]
+
+
+def declared_tier(root: Path, addon: str) -> tuple[str, str] | None:
+    """(card id, tier) of the highest tier any live card declares for *addon*
+    (`-` counts as green), or None when no card lists it."""
+    best: tuple[str, str] | None = None
+    for card_id, card in _live_cards(root, addon):
+        tier = card.get("tier", "-")
+        tier = tier if tier in TIER_ORDER else "green"
+        if best is None or TIER_ORDER[tier] > TIER_ORDER[best[1]]:
+            best = (card_id, tier)
+    return best
+
+
+def _module_finding(root: Path, profile: Any, module: str, version: str) -> dict[str, Any] | None:
+    """The highest-tier classifier finding in *module*'s existing files, or
+    None (no such directory yet, or nothing above green)."""
+    import os
+
+    from checkbox.risk import classify as classify_mod
+
+    worst: dict[str, Any] | None = None
+    for addon_root in getattr(profile, "custom_addons", None) or []:
+        module_dir = Path(root) / addon_root / module
+        for dirpath, dirnames, filenames in os.walk(module_dir):
+            dirnames[:] = [d for d in dirnames if d not in ("static", "i18n", "__pycache__")]
+            for name in filenames:
+                if not name.endswith((".py", ".xml", ".csv")):
+                    continue
+                for finding in classify_mod.classify_file(Path(dirpath) / name, version)["reasons"]:
+                    worst_tier = worst["tier"] if worst else "green"
+                    if TIER_ORDER.get(finding["tier"], 0) > TIER_ORDER[worst_tier]:
+                        worst = finding
+    return worst
 
 
 def covers_addon(root: Path, addon: str) -> list[str]:

@@ -3,6 +3,85 @@
 Notable changes to `checkbox`, most recent first. Versions follow semver per
 `plugins/checkbox/.claude-plugin/plugin.json`; dates are the bump commit's date.
 
+## [1.3.0] - 2026-09-23
+
+### Added
+
+- `checkbox oca build|status` and `checkbox search --kind oca [--all-versions]`:
+  a local, per-version OCA module catalog (built from github.com/OCA via
+  sparse git clones) so ladder rung 5 is answered from evidence, with
+  license and last-commit/staleness flags. Needs `git` and network at build time only.
+  A build that finds no module fails instead of writing an empty catalog, an
+  unreachable repo is no longer recorded as "no such branch", and running the
+  build again retries only the repos that failed (exit 1 while any are missing).
+  `oca status` and `search` say so when a catalog is incomplete.
+
+- Risk rules for nine more ledger models (`account.move.line`,
+  `account.payment`, `account.tax`, `account.partial.reconcile`,
+  `account.bank.statement.line`, `stock.move.line`, `stock.quant`,
+  `stock.valuation.layer` on 17.0/18.0, `ir.sequence`), each verified against
+  Odoo source, and detectors for stored computes, `env(su=True)`,
+  monkeypatched core methods, ORM writes to a ledger model, crons, server
+  actions and automation rules, `<delete>`/`<function>`.
+- `checkbox search` matches stems and prefixes ("manager approval" finds
+  "managers ... approve") and falls back to any term; settings fields of
+  every type are indexed.
+
+### Changed
+
+- The card's `tier` is checked against the classifier: sign-off refuses a
+  card below the tier of the code it covers, and an edit that classifies
+  above its card is flagged and blocks the stop once.
+- An unreadable `.checkbox/profile.json` holds project edits until it is
+  fixed and is reported at session start; the CLI exits 2 with one line
+  instead of a traceback.
+- checkbox writes `.checkbox/.gitignore` (`local.json`, `.session/`) with the
+  first local state file.
+
+- A card's `addons` field lists **module names** (`my_module`), not
+  `custom_addons` roots. Cards written with a root there no longer validate;
+  `verdict: code` needs at least one module.
+- In `strict`, leaving strict is a human act: the agent is denied
+  `checkbox mode set`, `checkbox profile write` and edits to
+  `.checkbox/local.json` / `profile.json`.
+- In `full`, the Stop check is satisfied by a proposed card listing the
+  module; `strict` still needs an approved one.
+- `checkbox setup copilot` merges into an existing
+  `.github/copilot-instructions.md` instead of overwriting it.
+
+- The OCA catalog keeps a module name that exists in two repositories
+  (key is repo + module), `search` notes a catalog older than 90 days, and
+  `card validate` rejects an OCA ref the complete local catalog does not
+  contain.
+- Hooks also match `NotebookEdit`.
+- Only a well-formed version, edition and hosting from `profile.json` are
+  rendered into the injected ladder.
+- The PII lint no longer flags document numbers such as `PO2024000123` as
+  VAT numbers.
+
+### Fixed
+
+- Strict mode could never be unblocked: no valid card could cover a module.
+- The agent could write `.checkbox/approvals.json` with the Write/Edit tools,
+  or approve after lowering the mode; both are now denied at every level.
+- Every hook went silent after the agent ran `cd` into a subdirectory.
+- `checkbox approve` accepted non-numeric ids, a card whose block id differed
+  from its filename, and an empty ledger report; a card slug ending in
+  `-ledger` was not found.
+- Guard: absolute or `./`-prefixed `custom_addons` entries were ignored.
+- `pre-bash`: schema-qualified or quoted ledger tables, `TRUNCATE`/`DROP`/
+  `ALTER`, and `account_payment`/`account_tax`/`account_full_reconcile`/
+  `ir_sequence` are now caught; reads of `approvals.json` piped elsewhere are
+  no longer denied.
+- Classifier: raw SQL through `request.env.cr`/`record.env.cr`,
+  `odoo.SUPERUSER_ID`, and `<data noupdate="1">` were missed; unparseable XML
+  was green.
+- `checkbox setup` failed on a marketplace install (its rule files lived
+  outside the plugin); they now ship in `plugins/checkbox/adapters/`.
+- `checkbox oca build` no longer signals a pid from its lock on Windows.
+- `checkbox search` built an empty index when a relative `odoo_source` was
+  used from a subdirectory.
+
 ## [1.2.2] - 2026-09-17
 
 ### Fixed

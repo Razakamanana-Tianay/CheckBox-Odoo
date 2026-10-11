@@ -41,8 +41,9 @@ Automatic guard (strict mode only):
   stopping is blocked once if addon files were touched with no card
   covering them (Stop).
 
-Current status: `checkbox search` covers `source` evidence only (addon
-manifests, res.config.settings fields/views) -- `docs` and `oca` evidence
-aren't indexed yet (tracked as a P3 follow-up in docs/ARCHITECTURE.md).
+Current status: `checkbox search` covers `source` evidence (addon
+manifests, res.config.settings fields/views) and, once `checkbox oca build`
+has run, `oca` evidence (OCA module catalog for the project's version);
+`docs` isn't indexed yet.
 Say so if asked, don't imply they already run.
 ```

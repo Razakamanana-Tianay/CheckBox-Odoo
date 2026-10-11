@@ -9,7 +9,8 @@ import json
 import os
 from pathlib import Path
 
-from checkbox.profile import VALID_MODES
+from checkbox.paths import ensure_state_gitignore
+from checkbox.profile import VALID_MODES, ProfileError
 from checkbox.profile import load as load_profile
 
 DEFAULT_MODE = "full"
@@ -32,8 +33,8 @@ def resolve(root: Path) -> str:
 
     try:
         profile = load_profile(root)
-    except FileNotFoundError:
-        return DEFAULT_MODE
+    except (FileNotFoundError, ProfileError):
+        return DEFAULT_MODE  # an unreadable profile is reported by the hooks that need it
     if profile.mode in VALID_MODES:
         return profile.mode
     return DEFAULT_MODE
@@ -51,5 +52,6 @@ def write_local_mode(root: Path, mode: str) -> Path:
         except (json.JSONDecodeError, OSError):
             data = {}
     data["mode"] = mode
+    ensure_state_gitignore(root)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return path

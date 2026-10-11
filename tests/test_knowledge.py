@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "plugins" / "checkbox" / "lib"))
 
@@ -311,3 +313,80 @@ def test_search_does_not_rebuild_when_only_a_noise_dir_file_changes(tmp_path, mo
 
     db_path_again = search_mod.ensure_index(profile, project_root=REPO_ROOT)
     assert db_path_again.stat().st_mtime == first_mtime  # not rebuilt
+
+
+def test_relative_odoo_source_resolves_against_the_project_not_the_cwd(tmp_path, monkeypatch):
+    import shutil
+
+    from checkbox.profile import Profile, resolve_addon_roots
+
+    project = tmp_path / "proj"
+    shutil.copytree(STUB_18CE, project / "odoo-src")
+    (project / "sub").mkdir()
+    profile = Profile(odoo_version="18.0", odoo_source="odoo-src")
+    monkeypatch.chdir(project / "sub")
+    roots = resolve_addon_roots(profile, project)
+    assert roots and all(r.is_absolute() and r.is_dir() for r in roots)
+    assert all(project in r.parents for r in roots)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "manager approval",  # source says "managers", "approve"
+        "approve purchase orders",
+        "dropship",  # source says "Dropshipping"
+        "purchase order approval above some amount please",  # no doc has every word
+    ],
+)
+def test_search_matches_natural_phrasing(tmp_path, monkeypatch, query):
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path))
+    profile = Profile(odoo_version="18.0", odoo_source=str(STUB_18CE))
+    assert search_mod.search(profile, tmp_path, query, kinds=["source"]), query
+
+
+def test_all_terms_matches_rank_before_any_term_matches(tmp_path):
+    con = store.connect(tmp_path / "i.sqlite")
+    docs = [
+        {
+            "kind": "source",
+            "ref": "a",
+            "title": "Purchase approval",
+            "snippet": "",
+            "version": "18.0",
+        },
+        {"kind": "source", "ref": "b", "title": "Purchase", "snippet": "", "version": "18.0"},
+    ]
+    store.index_documents(con, docs)
+    assert [r["ref"] for r in store.search(con, "purchase approval")] == ["a"]
+    # No document has both terms: fall back to any term instead of nothing.
+    assert {r["ref"] for r in store.search(con, "purchase zebra")} == {"a", "b"}
+    assert store.search(con, "zebra") == []
+
+
+def test_settings_fields_of_any_type_are_indexed(tmp_path):
+    addon = tmp_path / "addons" / "acc"
+    (addon / "models").mkdir(parents=True)
+    (addon / "__manifest__.py").write_text("{'name': 'Acc'}", encoding="utf-8")
+    (addon / "models" / "res_config_settings.py").write_text(
+        "from odoo import fields, models\n\n\nclass S(models.TransientModel):\n"
+        "    _inherit = 'res.config.settings'\n"
+        "    fiscalyear_lock_date = fields.Date(string='Lock Date for All Users')\n"
+        "    helper = compute_something()\n",
+        encoding="utf-8",
+    )
+    titles = [d["title"] for d in source_mod.build([tmp_path / "addons"], "18.0")]
+    assert "res.config.settings.fiscalyear_lock_date" in titles
+    assert "res.config.settings.helper" not in titles
+
+
+def test_a_failed_rebuild_leaves_the_previous_index_in_place(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path))
+    profile = Profile(odoo_version="18.0", odoo_source=str(STUB_18CE))
+    db = search_mod.ensure_index(profile, tmp_path)
+    before = db.read_bytes()
+    monkeypatch.setattr(store, "index_documents", lambda *a: (_ for _ in ()).throw(OSError("disk")))
+    with pytest.raises(OSError):
+        search_mod.ensure_index(profile, tmp_path, force=True)
+    assert db.read_bytes() == before
+    assert [p.name for p in db.parent.iterdir()] == [db.name]

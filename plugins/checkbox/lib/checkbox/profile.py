@@ -43,6 +43,10 @@ class Profile:
         return asdict(self)
 
 
+class ProfileError(ValueError):
+    """`profile.json` exists but cannot be used (not JSON, or wrong shapes)."""
+
+
 def _profile_path(root: Path) -> Path:
     return root / ".checkbox" / "profile.json"
 
@@ -252,9 +256,23 @@ def load_file(path: Path) -> Profile:
     """Load a profile from an arbitrary JSON file -- `load()`'s
     `.checkbox/profile.json` convention is one caller of this, and
     `checkbox search --profile <file>` (repo CLAUDE.md) is another."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ProfileError(f"{path} cannot be read: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ProfileError(f"{path} cannot be read: expected a JSON object")
     known = {f for f in Profile.__dataclass_fields__}
-    return Profile(**{k: v for k, v in data.items() if k in known})
+    profile = Profile(**{k: v for k, v in data.items() if k in known})
+    # Shapes the hooks rely on; value checks stay in validate().
+    for name in ("custom_addons", "third_party_addons", "localizations"):
+        value = getattr(profile, name)
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ProfileError(f"{path} cannot be read: {name} must be a list of strings")
+    for name in ("odoo_version", "edition", "hosting", "odoo_source", "enterprise_source", "mode"):
+        if not isinstance(getattr(profile, name), (str, type(None))):
+            raise ProfileError(f"{path} cannot be read: {name} must be a string")
+    return profile
 
 
 def resolve_addon_roots(profile: Profile, project_root: Path) -> list[Path]:
@@ -263,17 +281,20 @@ def resolve_addon_roots(profile: Profile, project_root: Path) -> list[Path]:
     and the project's own custom/third-party addons (relative to
     *project_root*, per Appendix B -- a different base than `odoo_source`).
     """
+    # Every profile path is relative to the project root (Appendix B), never
+    # to the process cwd; `root / x` keeps an absolute x as is.
+    project_root = Path(project_root).resolve()
     roots: list[Path] = []
     if profile.odoo_source:
-        base = Path(profile.odoo_source)
+        base = project_root / profile.odoo_source
         for rel in find_addon_roots(base):
             if rel in (".", "custom_addons"):
                 continue  # checkout root itself, or a dir outside Odoo's own layout
             roots.append(base / rel)
     if profile.enterprise_source:
-        roots.append(Path(profile.enterprise_source))
+        roots.append(project_root / profile.enterprise_source)
     for rel in (*profile.custom_addons, *profile.third_party_addons):
-        roots.append(Path(project_root) / rel)
+        roots.append(project_root / rel)
     return roots
 
 

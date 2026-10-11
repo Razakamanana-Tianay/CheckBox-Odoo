@@ -171,3 +171,205 @@ def test_rules_verify_real_18_smoke():
         pytest.skip("ODOO18_SRC unset")
     errors = rules_mod.verify("18.0", Path(root))
     assert errors == []
+
+
+# -- existing rules, shapes they used to miss (2026-10-11 review) -------------
+
+
+def _classify_text(tmp_path: Path, name: str, body: str) -> dict:
+    path = tmp_path / name
+    path.write_text(body, encoding="utf-8")
+    return classify_mod.classify_file(path, "18.0")
+
+
+@pytest.mark.parametrize(
+    "receiver",
+    ["request.env.cr", "move.env.cr", "self.env.cr", "self._cr", "cr", "records.sudo().env.cr"],
+)
+def test_raw_sql_is_red_on_any_cursor_receiver(tmp_path, receiver):
+    body = f"def f(self, move, cr, request, records):\n    {receiver}.execute('SELECT 1')\n"
+    result = _classify_text(tmp_path, "x.py", body)
+    assert "python_call:execute" in [r["rule_id"] for r in result["reasons"]]
+    assert result["tier"] == "red"
+
+
+def test_execute_on_a_non_cursor_stays_green(tmp_path):
+    body = "def f(pool, job):\n    pool.execute(job)\n    job.runner.execute()\n"
+    assert _classify_text(tmp_path, "x.py", body)["tier"] == "green"
+
+
+def test_superuser_id_attribute_form_is_red(tmp_path):
+    body = "import odoo\n\ndef f(env):\n    return env(user=odoo.SUPERUSER_ID)\n"
+    result = _classify_text(tmp_path, "x.py", body)
+    assert [r["rule_id"] for r in result["reasons"]] == ["python_name:SUPERUSER_ID"]
+
+
+def test_noupdate_on_a_data_element_is_amber(tmp_path):
+    body = "<odoo><data noupdate='1'><record id='a' model='res.partner'/></data></odoo>"
+    result = _classify_text(tmp_path, "data.xml", body)
+    assert [r["rule_id"] for r in result["reasons"]] == ["xml:noupdate"]
+    assert result["tier"] == "amber"
+
+
+def test_unparseable_xml_is_amber_like_unparseable_python(tmp_path):
+    result = _classify_text(tmp_path, "broken.xml", "<odoo><record model='ir.rule'>")
+    assert [r["rule_id"] for r in result["reasons"]] == ["parse-error"]
+    assert result["tier"] == "amber"
+
+
+# -- rules §6.1 lists that had no detector, and the wider model set ------------
+
+_M = "from odoo import api, fields, models\n\n\n"
+
+
+@pytest.mark.parametrize(
+    ("name", "body", "tier", "rule_id"),
+    [
+        (
+            "aml.py",
+            _M + "class L(models.Model):\n    _inherit = 'account.move.line'\n",
+            "red",
+            "model:account.move.line",
+        ),
+        (
+            "pay.py",
+            _M
+            + "class P(models.Model):\n    _inherit = 'account.payment'\n    def action_post(self):\n        return super().action_post()\n",  # noqa: E501 -- one-line source sample
+            "red",
+            "model-method:account.payment.action_post",
+        ),
+        (
+            "tax.py",
+            _M + "class T(models.Model):\n    _inherit = 'account.tax'\n",
+            "red",
+            "model:account.tax",
+        ),
+        (
+            "quant.py",
+            _M + "class Q(models.Model):\n    _inherit = 'stock.quant'\n",
+            "red",
+            "model:stock.quant",
+        ),
+        (
+            "seq.py",
+            _M
+            + "class S(models.Model):\n    _inherit = 'ir.sequence'\n    def _next(self, sequence_date=None):\n        return '1'\n",  # noqa: E501 -- one-line source sample
+            "red",
+            "model-method:ir.sequence._next",
+        ),
+        (
+            "stored.py",
+            _M
+            + "class S(models.Model):\n    _inherit = 'sale.order'\n    x = fields.Float(compute='_c', store=True)\n",  # noqa: E501 -- one-line source sample
+            "amber",
+            "python:stored_compute",
+        ),
+        (
+            "su.py",
+            "def f(self):\n    return self.env(su=True)['res.partner'].search([])\n",
+            "red",
+            "python:su_true",
+        ),
+        (
+            "patch.py",
+            "from odoo.addons.account.models.account_move import AccountMove\n\n\ndef _post(self, soft=True):\n    return self\n\n\nAccountMove._post = _post\n",  # noqa: E501 -- one-line source sample
+            "red",
+            "python:monkeypatch",
+        ),
+        (
+            "orm.py",
+            "def f(self):\n    self.env['account.move.line'].search([]).write({'account_id': 1})\n",
+            "red",
+            "orm_write:account.move.line",
+        ),
+        (
+            "orm2.py",
+            "def f(self):\n    self.env['account.move'].sudo().create({})\n",
+            "red",
+            "orm_write:account.move",
+        ),
+        (
+            "cron.xml",
+            "<odoo><record id='c' model='ir.cron'><field name='code'>model.run()</field></record></odoo>",  # noqa: E501 -- one-line source sample
+            "amber",
+            "xml:ir.cron",
+        ),
+        (
+            "action.xml",
+            "<odoo><record id='a' model='ir.actions.server'><field name='code'>x = 1</field></record></odoo>",  # noqa: E501 -- one-line source sample
+            "amber",
+            "xml:server_code",
+        ),
+        (
+            "auto.xml",
+            "<odoo><record id='a' model='base.automation'/></odoo>",
+            "amber",
+            "xml:server_code",
+        ),
+        (
+            "delete.xml",
+            "<odoo><delete model='res.partner' id='base.x'/></odoo>",
+            "amber",
+            "xml:data_operation",
+        ),
+        (
+            "delete_rule.xml",
+            "<odoo><delete model='ir.rule' id='account.account_move_comp_rule'/></odoo>",
+            "red",
+            "xml:data_operation",
+        ),
+        (
+            "function.xml",
+            "<odoo><function model='account.move' name='action_post'/></odoo>",
+            "red",
+            "xml:data_operation",
+        ),
+    ],
+)
+def test_rule_detects(tmp_path, name, body, tier, rule_id):
+    result = _classify_text(tmp_path, name, body)
+    assert rule_id in [r["rule_id"] for r in result["reasons"]]
+    assert result["tier"] == tier
+
+
+@pytest.mark.parametrize(
+    ("name", "body"),
+    [
+        (
+            "plain_compute.py",
+            _M
+            + "class S(models.Model):\n    _inherit = 'sale.order'\n    x = fields.Float(compute='_c')\n    y = fields.Char(store=True)\n",  # noqa: E501 -- one-line source sample
+        ),
+        ("su_false.py", "def f(self):\n    return self.env(su=False)\n"),
+        (
+            "own_attr.py",
+            "class A:\n    def set(self):\n        self._post = 1\n        self.helper.name = 2\n",
+        ),
+        (
+            "orm_other.py",
+            "def f(self):\n    self.env['res.partner'].create({})\n    self.env['account.move'].search([])\n",  # noqa: E501 -- one-line source sample
+        ),
+        (
+            "view.xml",
+            "<odoo><record id='v' model='ir.ui.view'><field name='arch' type='xml'><form/></field></record></odoo>",  # noqa: E501 -- one-line source sample
+        ),
+    ],
+)
+def test_rule_stays_quiet(tmp_path, name, body):
+    assert _classify_text(tmp_path, name, body) == {"tier": "green", "reasons": []}
+
+
+def test_groups_field_on_a_menu_record_is_amber(tmp_path):
+    body = (
+        "<odoo><record id='m' model='ir.ui.menu'>"
+        "<field name='groups_id' eval='[(4, ref(\"base.group_user\"))]'/></record></odoo>"
+    )
+    result = _classify_text(tmp_path, "menu.xml", body)
+    assert [r["rule_id"] for r in result["reasons"]] == ["xml:groups_on_menu_or_action"]
+
+
+@pytest.mark.parametrize("version", ["17.0", "18.0", "19.0"])
+def test_every_overlay_entry_names_a_source(version):
+    overlay = rules_mod.load_version(version)
+    assert len(overlay["models"]) >= 11
+    assert all(entry.get("source") for entry in overlay["models"].values())

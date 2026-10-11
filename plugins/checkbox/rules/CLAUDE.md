@@ -45,6 +45,8 @@ risk/19.0.json
   plugins/checkbox/bin/checkbox rules verify --version 18.0 --odoo-src "$ODOO18_SRC" [--enterprise-src "$ODOO18_EE_SRC"]
   ```
 
+  Without a checkout: `python3 scripts/fetch_rule_sources.py --version 18.0 --dest .odoo-src/18.0` downloads only the files the overlay cites (CI does this for 17.0, 18.0 and 19.0).
+
   `verify` parses the `source` file with `ast` and fails if the model (`_name`/`_inherit`) or any listed method is not defined there. Entries for Enterprise-only models carry `"edition": "enterprise"` and are verified only when `--enterprise-src` is given.
 - **Overlays.** An overlay may add entries, change tiers, or remove an entry with `"removed": true` plus a `note` explaining the version change. Never copy an overlay forward without re-running `verify` on the new version.
 - **Tier definitions:** ARCHITECTURE §6.1. When unsure between amber and red, choose red and write the reason in `note`.

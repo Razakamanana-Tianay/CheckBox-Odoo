@@ -65,10 +65,12 @@ def _load_profile(root: Path) -> profile_mod.Profile:
         ) from exc
 
 
-def _search(root: Path, query: str, kind: str | None, limit: int) -> list[dict[str, Any]]:
+def _search(
+    root: Path, query: str, kind: str | None, limit: int, all_versions: bool = False
+) -> list[dict[str, Any]]:
     prof = _load_profile(root)
     kinds = kind.split(",") if kind else None
-    return search_mod.search(prof, root, query, kinds=kinds, limit=limit)
+    return search_mod.search(prof, root, query, kinds=kinds, limit=limit, all_versions=all_versions)
 
 
 def _classify(root: Path, path: str, version: str | None) -> dict[str, Any]:
@@ -109,15 +111,18 @@ def build_server(root: Path):
     mcp = MCPServer("checkbox")
 
     @mcp.tool()
-    def search(query: str, kind: str = "", limit: int = 10) -> list[dict[str, Any]]:
+    def search(
+        query: str, kind: str = "", limit: int = 10, all_versions: bool = False
+    ) -> list[dict[str, Any]]:
         """Search the project's Odoo evidence index (source, and docs/oca when built).
 
         `kind` is a comma-separated filter (e.g. "source" or "source,oca");
         empty means all kinds. Returns Evidence-shaped dicts: kind, ref,
-        line, title, snippet, version, score.
+        line, title, snippet, version, score. `all_versions` also searches every
+        built OCA catalog, each hit keeping its real branch in `version`.
         """
         try:
-            return _search(root, query, kind or None, limit)
+            return _search(root, query, kind or None, limit, all_versions)
         except ValueError as exc:
             raise ToolError(str(exc)) from exc
 

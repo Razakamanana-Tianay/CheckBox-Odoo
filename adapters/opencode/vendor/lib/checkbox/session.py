@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+from checkbox.paths import ensure_state_gitignore
 
 _MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
@@ -25,11 +28,13 @@ def _default() -> dict[str, Any]:
     # `record_touched_addon(...).append(...)` would leak across sessions --
     # a single module-level default dict, shallow-copied per call, would
     # leave every copy pointing at the same nested list object.
-    return {"touched_addons": [], "cards_seen": [], "stop_block_count": 0}
+    return {"touched_addons": [], "classified_tiers": {}, "stop_block_count": 0}
 
 
 def _session_path(root: Path, session_id: str) -> Path:
-    return Path(root) / ".checkbox" / ".session" / f"{session_id}.json"
+    # session_id arrives from the hook payload: keep it a plain file name.
+    safe = re.sub(r"[^\w.-]", "_", session_id) or "unknown"
+    return Path(root) / ".checkbox" / ".session" / f"{safe}.json"
 
 
 def load(root: Path, session_id: str) -> dict[str, Any]:
@@ -47,6 +52,7 @@ def load(root: Path, session_id: str) -> dict[str, Any]:
 
 def save(root: Path, session_id: str, state: dict[str, Any]) -> Path:
     path = _session_path(root, session_id)
+    ensure_state_gitignore(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
@@ -91,3 +97,13 @@ def increment_stop_block_count(root: Path, session_id: str) -> int:
     state["stop_block_count"] = int(state.get("stop_block_count", 0)) + 1
     save(root, session_id, state)
     return state["stop_block_count"]
+
+
+def record_classified_tier(root: Path, session_id: str, addon: str, tier: str) -> None:
+    """Remember the highest classifier tier seen for *addon* this session, so
+    the Stop hook can compare it with the card without re-reading any file."""
+    order = {"green": 0, "amber": 1, "red": 2}
+    state = load(root, session_id)
+    if order.get(tier, 0) > order.get(state["classified_tiers"].get(addon, "green"), 0):
+        state["classified_tiers"][addon] = tier
+        save(root, session_id, state)

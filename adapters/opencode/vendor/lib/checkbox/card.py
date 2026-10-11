@@ -25,6 +25,12 @@ _EVIDENCE_KINDS = ("source", "docs", "oca", "live", "unverified")
 _TIER_REQUIRED_VERDICTS = ("code", "module")
 _EVIDENCE_REQUIRED_VERDICTS = ("standard", "config", "module")
 
+# `oca | OCA/<repo>/<module> branch=<X.Y> license=<L> last_commit=<YYYY-MM-DD|unknown>`
+# is what `checkbox search --kind oca` prints as `card_ref`.
+_OCA_REF_RE = re.compile(r"^OCA/[\w.-]+/\w+((?:\s+\w+=\S+)*)$")
+_MODULE_NAME_RE = re.compile(r"^\w+$")
+_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}|unknown)$")
+
 _FENCE_RE = re.compile(rf"```{FENCE_LANG}\n(.*?)```", re.DOTALL)
 _KEY_LINE_RE = re.compile(r"^([a-z_]+):\s*(.*)$")
 
@@ -34,7 +40,12 @@ _KEY_LINE_RE = re.compile(r"^([a-z_]+):\s*(.*)$")
 # nothing extra since the lint is a courtesy check, not the only defense.
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}")
 _IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
-_VAT_RE = re.compile(r"\b[A-Z]{2}\d{8,12}\b")
+# Country prefixes that issue VAT numbers of this shape (EU members, plus
+# GB/CH/NO); any two letters would also flag document numbers (PO2024000123).
+_VAT_RE = re.compile(
+    r"\b(?:AT|BE|BG|CY|CZ|DE|DK|EE|EL|ES|FI|FR|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK"
+    r"|GB|CH|NO)[A-Z]?\d{8,12}\b"
+)
 
 
 def parse(text: str) -> dict[str, Any]:
@@ -111,8 +122,9 @@ def validate(
 ) -> list[str]:
     """Return a list of error strings; empty means valid.
 
-    *profile* (a checkbox.profile.Profile, optional) is used only to check
-    `addons` against `custom_addons` when the verdict is `code`. Approval
+    *profile* (a checkbox.profile.Profile, optional) is used to reject an
+    `addons` entry that is a `custom_addons` root instead of a module, and to
+    check an `oca` ref's branch. Approval
     revalidation (hash-matches-approved-block) belongs to approvals.py, not
     here; this only validates the card's own internal consistency.
     """
@@ -145,12 +157,23 @@ def validate(
                 f"evidence kind must be one of {_EVIDENCE_KINDS}, got {item.get('kind')!r}"
             )
 
-    if verdict == "code" and profile is not None:
-        custom_addons = set(getattr(profile, "custom_addons", []) or [])
-        for addon in card.get("addons", []):
-            if addon not in custom_addons:
-                allowed = sorted(custom_addons)
-                errors.append(f"addons entry {addon!r} is not in custom_addons {allowed}")
+    if verdict == "module":
+        for item in evidence:
+            if item.get("kind") == "oca":
+                errors.extend(_check_oca_ref(item.get("ref", ""), profile))
+
+    # `addons` names modules -- the unit the guard resolves an edited file to
+    # (hooks/guard.py) -- never a `custom_addons` root or a path.
+    addons = card.get("addons", [])
+    roots = set(getattr(profile, "custom_addons", None) or [])
+    for addon in addons:
+        if not _MODULE_NAME_RE.match(addon) or addon in roots:
+            errors.append(
+                f"addons entry {addon!r} must be a module name (the directory under a "
+                "custom_addons root, e.g. 'my_module'), not a path or an addons root"
+            )
+    if verdict == "code" and not addons:
+        errors.append("verdict 'code' needs at least one module in addons")
 
     if status == "proposed" and "id" not in card:
         errors.append("card is missing 'id'")
@@ -159,4 +182,55 @@ def validate(
         pii = lint_pii(raw_text)
         errors.extend(f"possible PII: {w}" for w in pii)
 
+    return errors
+
+
+def _oca_catalog_error(repo: str, module: str, branch: str) -> str | None:
+    """The module must be in the local catalog for that branch -- when one is
+    built and complete. No catalog, or an incomplete one, proves nothing."""
+    from checkbox import paths
+    from checkbox.knowledge import oca
+
+    db = paths.data_dir() / "oca" / f"{branch}.sqlite"
+    if not db.is_file() or oca.missing_repos(db) or oca.has_module(db, repo, module):
+        return None
+    return (
+        f"oca evidence OCA/{repo}/{module} is not in the local OCA catalog for {branch} "
+        "(`checkbox search --kind oca` lists what is; `checkbox oca build --force` refreshes it)"
+    )
+
+
+def _check_oca_ref(ref: str, profile: Any) -> list[str]:
+    """Rung-5 rule (rules/ladder.md): an OCA module must be on this project's
+    branch and the card must carry its license and repo last-commit date."""
+    from checkbox.knowledge import oca
+
+    hint = "use `card_ref` from `checkbox search --kind oca`"
+    match = _OCA_REF_RE.match(ref)
+    if not match:
+        return [
+            f"oca evidence {ref!r} must look like "
+            f"'OCA/<repo>/<module> branch=.. license=.. last_commit=..' ({hint})"
+        ]
+    tokens = dict(t.split("=", 1) for t in match.group(1).split())
+    errors = [
+        f"oca evidence {ref!r} is missing {key}= ({hint})"
+        for key in ("branch", "license", "last_commit")
+        if key not in tokens
+    ]
+    if "last_commit" in tokens and not _DATE_RE.match(tokens["last_commit"]):
+        errors.append(
+            f"oca evidence last_commit must be YYYY-MM-DD or unknown, got {tokens['last_commit']!r}"
+        )
+    version = getattr(profile, "odoo_version", None)
+    if version and "branch" in tokens and tokens["branch"] != version:
+        errors.append(
+            f"oca evidence is for branch {tokens['branch']}, but this project is on {version}; "
+            "a module from another branch does not satisfy rung 5"
+        )
+    if not errors and oca.VERSION_RE.fullmatch(tokens["branch"]):
+        _prefix, repo, module = ref.split()[0].split("/")
+        missing = _oca_catalog_error(repo, module, tokens["branch"])
+        if missing:
+            errors.append(missing)
     return errors

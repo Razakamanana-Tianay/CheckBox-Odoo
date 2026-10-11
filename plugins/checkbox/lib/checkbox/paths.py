@@ -33,3 +33,14 @@ def data_dir() -> Path:
         if val:
             return Path(val)
     return Path.home() / ".cache" / "checkbox"
+
+
+def ensure_state_gitignore(root: Path) -> None:
+    """Write `.checkbox/.gitignore` the first time checkbox stores local state
+    in a project, so a personal mode override and session files stay out of
+    the client repo (Appendix B: `local.json` and `.session/` are gitignored).
+    An existing file is the project's own and is left alone."""
+    path = Path(root) / ".checkbox" / ".gitignore"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("local.json\n.session/\n", encoding="utf-8")

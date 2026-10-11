@@ -11,33 +11,30 @@ evidence index is never opened.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
+from checkbox import approvals
 from checkbox import mode as mode_mod
 from checkbox import session as session_mod
 from checkbox.hooks import guard
-from checkbox.hooks.common import emit_hook_context, safe_main
+from checkbox.hooks.common import emit_hook_context, project_root, safe_main, tool_target
+from checkbox.profile import ProfileError
 from checkbox.profile import load as load_profile
 from checkbox.risk import classify as classify_mod
 
 
 def _run(payload: dict[str, Any]) -> None:
-    root = Path(payload.get("cwd") or ".").resolve()
+    root = project_root(payload, tool_target(payload))
     resolved_mode = mode_mod.resolve(root)
     if resolved_mode not in ("full", "strict"):
         return
-    tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
-    if not file_path:
+    target = tool_target(payload)
+    if target is None:
         return
-    target = Path(file_path)
-    if not target.is_absolute():
-        target = root / target
     profile = None
     try:
         profile = load_profile(root)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProfileError):
         return
     addon = guard.addon_for_path(root, profile, target)
     session_id = payload.get("session_id") or "unknown"
@@ -55,6 +52,15 @@ def _run(payload: dict[str, Any]) -> None:
     for finding in findings[:6]:
         loc = f":{finding['line']}" if finding.get("line") else ""
         lines.append(f"  {finding['rule_id']}{loc} -- {finding['detail']}")
+    if addon:
+        session_mod.record_classified_tier(root, str(session_id), addon, result["tier"])
+        declared = approvals.declared_tier(root, addon)
+        if declared and approvals.TIER_ORDER[result["tier"]] > approvals.TIER_ORDER[declared[1]]:
+            lines.append(
+                f"card {declared[0]} declares tier {declared[1]} for '{addon}', below this "
+                f"file's {result['tier']}: the card's tier has to be raised to match "
+                "(editing the card voids its approval)"
+            )
     if result["tier"] == "red":
         lines.append(
             "red change: a human must read every line, a ledger-reviewer "

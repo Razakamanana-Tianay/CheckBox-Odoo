@@ -23,7 +23,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-_SETTINGS_FIELD_TYPES = ("Boolean", "Selection")
 _SNIPPET_MAX = 300
 
 # Directories that never contain a manifest, a res.config.settings field,
@@ -50,7 +49,7 @@ def _iter_addon_dirs(addons_root: Path):
             yield child
 
 
-def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
+def read_manifest(manifest_path: Path) -> dict[str, Any] | None:
     try:
         tree = ast.parse(manifest_path.read_text(encoding="utf-8"))
     except (SyntaxError, OSError, UnicodeDecodeError):
@@ -135,7 +134,9 @@ def _settings_field_docs(py_file: Path, version: str) -> list[dict[str, Any]]:
                 continue
             if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)):
                 continue
-            if call.func.attr not in _SETTINGS_FIELD_TYPES:
+            # Any `fields.<Type>(...)`: a setting is not always a toggle
+            # (lock dates, thresholds, default accounts are Date/Float/Many2one).
+            if not (isinstance(call.func.value, ast.Name) and call.func.value.id == "fields"):
                 continue
             label = _first_str_arg(call)
             help_text = _kwarg_str(call, "help")
@@ -185,7 +186,7 @@ def build(addons_roots: list[Path], version: str) -> list[dict[str, Any]]:
     docs: list[dict[str, Any]] = []
     for addons_root in addons_roots:
         for addon_dir in _iter_addon_dirs(Path(addons_root)):
-            manifest = _read_manifest(addon_dir / "__manifest__.py")
+            manifest = read_manifest(addon_dir / "__manifest__.py")
             if manifest is None:
                 continue
             docs.append(_manifest_doc(addon_dir, manifest, version))

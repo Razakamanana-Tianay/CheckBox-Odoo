@@ -185,3 +185,15 @@ def test_card_validate_tool_reports_errors_for_a_card_missing_evidence(tmp_path)
     result = _call(tmp_path, "card_validate", {"path": "card.md"})
     assert result["valid"] is False
     assert result["errors"]
+
+
+def test_mcp_search_forwards_all_versions(monkeypatch, tmp_path):
+    from checkbox import mcp_server
+
+    seen = {}
+    monkeypatch.setattr(mcp_server, "_load_profile", lambda root: object())
+    monkeypatch.setattr(
+        mcp_server.search_mod, "search", lambda prof, root, q, **kw: seen.update(kw) or []
+    )
+    mcp_server._search(tmp_path, "q", None, 5, all_versions=True)
+    assert seen["all_versions"] is True

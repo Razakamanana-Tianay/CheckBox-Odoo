@@ -5,13 +5,11 @@ otherwise a LIKE fallback. The core checks this at runtime." One table,
 `documents`, whose columns match the Evidence contract in
 lib/checkbox/CLAUDE.md (`score` is computed at query time, never stored).
 
-FTS5's default `MATCH` is exact-token AND matching, not stemmed or fuzzy:
-"manager" won't match text containing only "managers", and a multi-word
-query with any non-matching token returns nothing. Verified empirically
-against the real sparse-cloned 18.0 checkout while building this -- a
-query has to reuse words that actually appear in the source text. Callers
-(the `search` CLI, and later the `standard-scout` agent) should search with
-a few distinct keywords pulled from the request, not a whole sentence.
+Matching is stemmed (`porter`) and prefix-based, and falls back from
+"every term" to "any term" when no document has them all -- plain FTS5
+`MATCH` is exact-token AND, which returned nothing for "manager approval"
+against a text saying "managers ... approve" (2026-10-11 review). A few
+distinct keywords still rank better than a whole sentence.
 """
 
 from __future__ import annotations
@@ -34,7 +32,8 @@ CREATE TABLE IF NOT EXISTS documents (
 
 _SCHEMA_FTS5 = """
 CREATE VIRTUAL TABLE IF NOT EXISTS documents USING fts5(
-    kind UNINDEXED, ref UNINDEXED, line UNINDEXED, title, snippet, version UNINDEXED
+    kind UNINDEXED, ref UNINDEXED, line UNINDEXED, title, snippet, version UNINDEXED,
+    tokenize = 'porter unicode61'
 );
 """
 
@@ -83,7 +82,7 @@ def index_documents(con: sqlite3.Connection, docs: list[dict[str, Any]]) -> int:
     return len(docs)
 
 
-def _fts5_query(query: str) -> str:
+def _fts5_query(query: str, joiner: str = "AND") -> str:
     """Turn free text into an FTS5 query that can't raise a syntax error.
 
     FTS5's MATCH syntax treats `-`, `"`, `*`, `:`, and bare NOT/AND/OR as
@@ -91,22 +90,29 @@ def _fts5_query(query: str) -> str:
     term this project's own hosting vocabulary uses) raises "no such
     column: premise", and an unbalanced quote raises "unterminated
     string". Quoting each token as its own phrase (doubling any internal
-    quote) forces every character to match literally instead.
+    quote) forces every character to match literally instead. The trailing
+    `*` makes each phrase a prefix match ("dropship" finds "dropshipping"),
+    on top of the porter stemming the table is created with ("manager"
+    finds "managers", "approval" finds "approve").
     """
-    tokens = query.split()
-    return " ".join(f'"{tok.replace(chr(34), chr(34) * 2)}"' for tok in tokens)
+    quoted = [f'"{tok.replace(chr(34), chr(34) * 2)}"*' for tok in query.split()]
+    return f" {joiner} ".join(quoted)
 
 
 def search(con: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[str, Any]]:
     if has_fts5():
-        fts_query = _fts5_query(query)
-        if not fts_query:
+        if not query.split():
             return []
-        rows = con.execute(
-            "SELECT kind, ref, line, title, snippet, version, bm25(documents) AS rank "
-            "FROM documents WHERE documents MATCH ? ORDER BY rank LIMIT ?",
-            (fts_query, limit),
-        ).fetchall()
+        # Every term first; if no document has them all, any term, best first.
+        rows: list[Any] = []
+        for joiner in ("AND", "OR"):
+            rows = con.execute(
+                "SELECT kind, ref, line, title, snippet, version, bm25(documents) AS rank "
+                "FROM documents WHERE documents MATCH ? ORDER BY rank LIMIT ?",
+                (_fts5_query(query, joiner), limit),
+            ).fetchall()
+            if rows:
+                break
         # bm25() is lower-is-better; negate so callers can treat higher score as better everywhere.
         return [
             {

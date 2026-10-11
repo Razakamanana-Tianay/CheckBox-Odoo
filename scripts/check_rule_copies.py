@@ -46,6 +46,18 @@ def main(argv: list[str] | None = None) -> int:
         if path.is_file() and path.name != "CLAUDE.md" and path not in known_paths:
             drifted.append(f"{path.relative_to(ADAPTERS_DIR)}: stale, no renderer produces it")
 
+    copies = build_adapters.build_plugin_copies()
+    for rel_path, expected in copies.items():
+        path = build_adapters.PLUGIN_COPIES_DIR / rel_path
+        if not path.is_file() or path.read_text(encoding="utf-8") != expected:
+            drifted.append(f"plugins/checkbox/adapters/{rel_path}: missing or stale")
+    for path in build_adapters.PLUGIN_COPIES_DIR.rglob("*"):
+        if (
+            path.is_file()
+            and path.relative_to(build_adapters.PLUGIN_COPIES_DIR).as_posix() not in copies
+        ):
+            drifted.append(f"plugins/checkbox/adapters/{path.name}: stale, no renderer produces it")
+
     if drifted:
         print(f"adapters/ is stale ({len(drifted)} issue(s)):", file=sys.stderr)
         for issue in drifted:

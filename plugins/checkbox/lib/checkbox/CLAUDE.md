@@ -14,7 +14,7 @@ mode.py            resolve(): CHECKBOX_MODE > .checkbox/local.json > profile.mod
 ladder.py          render(level, profile) from rules/ladder.md + ladder.compact.md
 card.py            parse(md) / validate(card, profile, approvals) / next_id(dir)
 approvals.py       approve(card_id) (human CLI only), is_approved(card), card_hash(block)
-session.py         .checkbox/.session/<session_id>.json read/update (touched addons, stop blocks)
+session.py         .checkbox/.session/<session_id>.json read/update (touched addons, highest classified tier per addon, stop blocks)
 risk/
   rules.py         load common.json + version overlay; verify(version, odoo_src)
   pyscan.py        ast visitor → findings
@@ -25,8 +25,8 @@ knowledge/
   source.py        build feature index from addons paths (manifests, settings fields/views) — shipped, P3.
                    _description/menu-name indexing deferred; not needed by any seed case yet
   docs.py          sparse shallow clone of odoo/documentation@version; section splitter — NOT built (deferred at P3, stayed deferred at P7, ARCHITECTURE §14 D10)
-  oca.py           curated repo list; shallow clones; manifest fields — NOT built (P7 named this in scope but it was cut on review, ARCHITECTURE §14 D10 -- network+disk cost, no consumer yet)
-  search.py        unified search → Evidence list — shipped, P3, `source` kind only until docs.py/oca.py land
+  oca.py           OCA catalog: GitHub org repo enumeration (API, 3 calls, cached) + `git clone --depth 1 --filter=blob:none --sparse` per repo on the profile's branch, manifest rows + tip commit date → `$DATA/oca/<version>.sqlite`; deterministic keyword ranker — built (the D10 revisit trigger fired); needs `git` only at build time, never at search time
+  search.py        unified search → Evidence list — shipped, P3; `source` + `oca` built kinds (docs.py still a placeholder)
 hooks/
   common.py        read stdin JSON, safe_main() wrapper (fail-open), emit() helpers
   session_start.py prompt.py subagent_start.py pre_edit.py pre_bash.py post_edit.py stop.py
@@ -35,7 +35,7 @@ mcp_server.py      (P7, shipped) optional; imports the mcp SDK lazily; exposes s
 
 ## Contracts
 
-- **Evidence**: `{"kind": "source|docs|oca|live|unverified", "ref": str, "line": int|None, "title": str, "snippet": str, "version": str, "score": float}`
+- **Evidence**: `{"kind": "source|docs|oca|live|unverified", "ref": str, "line": int|None, "title": str, "snippet": str, "version": str, "score": float}`. `oca` rows add `card_ref`, `third_party_text`, `license`, `last_commit`/`stale` (repo-level), `development_status`, `maintainers`, `depends`, `source_url`; scores are only comparable within one kind
 - **Finding**: `{"rule_id": str, "tier": "green|amber|red", "file": str, "line": int, "detail": str}`
 - **Classification**: `{"tier": ..., "reasons": [Finding, ...]}`. The highest tier wins, and the empty result is `green`.
 - **Profile**: `docs/ARCHITECTURE.md` Appendix B. `validate()` returns a list of error strings; an empty list means valid.
@@ -43,18 +43,18 @@ mcp_server.py      (P7, shipped) optional; imports the mcp SDK lazily; exposes s
   - `verdict` is in the allowed set;
   - `tier` is required for `code` and `module`;
   - at least one non-`unverified` evidence item for `standard`, `config` and `module` (Online profiles may use `docs` only);
-  - `addons` must exist under `custom_addons` when the verdict is `code`;
+  - `addons` entries are module names (never a `custom_addons` root or a path), at least one when the verdict is `code`;
   - a best-effort PII lint rejects emails, IBANs and VAT-like tokens.
 
 ## Hook rules
 
-- Every hook entry point is wrapped in `safe_main()`. On any exception it logs to stderr, prints nothing and exits 0. The strict-mode `pre-edit` deny is the only intentional block.
+- Every hook entry point is wrapped in `safe_main()`. On any exception it logs to stderr, prints nothing and exits 0. The intentional blocks are the `pre-edit`/`pre-bash` denies and the one-time `stop` block.
 - **Output:** exactly one JSON object on stdout, or nothing at all.
   - Injection hooks use `hookSpecificOutput.additionalContext` with `hookEventName` set.
   - The PreToolUse deny uses `permissionDecision: "deny"` plus `permissionDecisionReason`, and the reason names the fix (`/checkbox:card`).
 - **Performance:** hooks never touch `knowledge/`, and never parse more than the single file named in the tool input. `tests/test_hook_perf.py` asserts p95 < 150 ms over 50 runs on the fixtures.
-- **Paths:** read `cwd` from the hook input, not `os.getcwd()`, because worktrees change it. Resolve the project root from there.
-- **Approvals file:** `pre-bash` denies any command that runs `checkbox approve`, or that writes to or moves `.checkbox/approvals.json`. This is a heuristic; document its limits in the reason text.
+- **Paths:** read `cwd` from the hook input, not `os.getcwd()`. `cwd` follows the agent's `cd`, so it is not the project root: always go through `common.project_root(payload)` (nearest ancestor with `.checkbox/`) and `common.tool_target(payload)`.
+- **Approvals file:** `pre-bash` denies any command that runs `checkbox approve`, or that writes to or moves `.checkbox/approvals.json` (a heuristic; document its limits in the reason text), and `pre-edit` denies Write/Edit on that file. In strict, both also deny changing the mode or the profile (`checkbox mode set`, `checkbox profile write`, `.checkbox/local.json`, `.checkbox/profile.json`).
 
 ## Odoo parsing rules
 
