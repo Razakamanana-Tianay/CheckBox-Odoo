@@ -129,7 +129,7 @@ claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --n
   - Human output goes to stdout and diagnostics to stderr.
 - **Plugin files.**
   - kebab-case names; skills under `skills/<name>/SKILL.md` with frontmatter `name` set explicitly.
-  - Hooks in exec form: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
+  - Hooks in shell form through the launcher: `"command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" <event>"`, no `args` (D12).
 - **Language.** English for code, docs, skills and injected text. Odoo terms stay as Odoo writes them (`res.config.settings`, `account.move`).
 - **Commits.** Conventional Commits (`feat(risk): …`, `fix(hooks): …`). One phase per PR.
 - **Versioning.** Semver in `plugins/checkbox/.claude-plugin/plugin.json`. Bump it on every user-visible change; users only get updates on a bump.

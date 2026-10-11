@@ -163,7 +163,7 @@ Context, rejected options, open questions (free text).
 | `evidence` | `;`-separated list of `kind \| ref`, where `kind` is `source`, `docs`, `oca`, `live` or `unverified` |
 | `evidence` (oca) | for `verdict: module`, an `oca` ref must be `OCA/<repo>/<module> branch=<ver> license=<L> last_commit=<YYYY-MM-DD\|unknown>` (`card_ref` from search); `card validate` rejects a missing field or a branch that isn't the profile's |
 | `tier` | `-` \| `green` \| `amber` \| `red` (required when verdict is `nocode` with Python, `module`, or `code`) |
-| `addons` | Addon directories the card authorizes changes in (`-` when none) |
+| `addons` | Module names (the directory under a `custom_addons` root) the card authorizes changes in; `-` when none, at least one for `code` |
 | `status` | `proposed` \| `approved` \| `rejected` \| `superseded` |
 
 ### 5.2 Lifecycle and storage
@@ -196,14 +196,16 @@ A red change requires three things:
 - **Python files:** parsed with `ast`. The classifier detects:
   - classes with `_inherit`/`_name` in the risk model set;
   - methods defined on those classes whose names appear in the method list for that model and version;
-  - calls to `sudo`, `with_user` and `cr.execute`;
+  - calls to `sudo`, `with_user` and `execute` on any cursor (`cr`, `_cr`, `<anything>.env.cr`);
   - `SUPERUSER_ID`;
   - controller decorators with `auth='public'`/`'none'` or `csrf=False`.
 - **XML/CSV files:** the classifier detects:
   - `ir.rule` records;
   - `ir.model.access` changes;
   - `groups` changes on menus and actions;
-  - `noupdate` data.
+  - `noupdate` data (on `<odoo>`, `<data>` or a record).
+
+  A file that does not parse (Python or XML) is amber, never green.
 - **Output:** `{tier, reasons: [{rule_id, file, line, detail}]}`. The highest tier across reasons wins.
 - **Rules are data:** `rules/risk/common.json` plus per-version overlays (`17.0.json`, `18.0.json`, `19.0.json`).
 
@@ -275,17 +277,17 @@ plugins/checkbox/
 
 ### 8.2 Hooks
 
-All hooks use **exec form**: `"command": "python3"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/bin/checkbox", "hook", "<event>"]`.
+All hooks use shell form through the launcher: `"command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/checkbox-hook\" <event>"`, no `args` (D12).
 
 | Event | Matcher | Effect | Levels |
 |---|---|---|---|
-| `SessionStart` | `startup\|resume\|clear\|compact` | `additionalContext`: rendered ladder for the level + profile summary. If the profile is missing, a factual note that it is missing and that `/checkbox:init` creates it | lite, full, strict |
+| `SessionStart` | `startup\|resume\|clear\|compact\|fork` | `additionalContext`: rendered ladder for the level + profile summary. If the profile is missing, a factual note that it is missing and that `/checkbox:init` creates it | lite, full, strict |
 | `UserPromptSubmit` | none | Compact ladder reminder (≤ 400 chars) | full, strict |
-| `SubagentStart` | all, or `CHECKBOX_SUBAGENT_MATCHER` | Compact ladder into subagents | full, strict |
-| `PreToolUse` | `Write\|Edit` (verify current file-tool names) | **strict:** deny edits under `custom_addons` when no approved card lists that addon. **full:** allow, and add a reminder if no card covers the addon | full, strict |
-| `PreToolUse` | `Bash` | Deny `checkbox approve`, writes to `.checkbox/approvals.json`, and SQL `UPDATE`/`DELETE` on ledger tables (heuristic) | full, strict |
+| `SubagentStart` | all (narrow it with the entry's own `matcher` in `hooks.json`) | Compact ladder into subagents | full, strict |
+| `PreToolUse` | `Write\|Edit` (verify current file-tool names) | **strict:** deny edits under `custom_addons` when no approved card lists that module, and deny edits to `.checkbox/local.json`/`profile.json`. **full:** allow, and add a reminder if no card covers the module. **Every level:** deny edits to `.checkbox/approvals.json` | full, strict |
+| `PreToolUse` | `Bash` | Deny `checkbox approve`, writes to `.checkbox/approvals.json`, and SQL `UPDATE`/`DELETE` on ledger tables (heuristic). **strict:** also deny `checkbox mode set` and `checkbox profile write` | full, strict |
 | `PostToolUse` | `Write\|Edit` | Classify the file; `additionalContext` with tier and reasons; record the touched addon in session state | full, strict |
-| `Stop` | none | If addon files were edited this session and no card lists the addon, block **once** with the reason "decision card missing" | full, strict |
+| `Stop` | none | If addon files were edited this session and a touched module has no card (**full:** any live card listing it; **strict:** an approved one), block **once** per session with the reason "decision card missing". Never blocks when `stop_hook_active` is set | full, strict |
 
 Hook contract facts (verified 2026-09-15, re-check in P0):
 
@@ -294,7 +296,9 @@ Hook contract facts (verified 2026-09-15, re-check in P0):
 - **Timeouts:** a timed-out PreToolUse command hook does not block.
 - **Output size:** hook output strings are capped at 10,000 characters.
 - **SessionStart:** fires again on `resume`, `clear` and `compact`, which is why the ladder survives compaction.
-- **Stop:** a Stop hook can prevent stopping. Loop protection (the stop-active flag) must be confirmed in P0.
+- **Stop:** a Stop hook can prevent stopping. The payload's `stop_hook_active` is true when Claude Code is already continuing because of a stop hook; Claude Code also caps consecutive continuations at 8 (verified 2026-10-11).
+
+**Project root.** Hooks resolve the project root as the nearest directory holding `.checkbox/` at or above the edited file, then the payload's `cwd`, then `$CLAUDE_PROJECT_DIR`; `cwd` itself follows the agent's `cd` (hooks reference, verified 2026-10-11).
 
 **Session state.** Stored in `.checkbox/.session/<session_id>.json` (gitignored). It holds touched addons, the cards seen and the stop-block count.
 
@@ -390,7 +394,7 @@ Use `claude plugin eval`. Each case runs with the plugin and without it (Δ), in
 Full run:
 
 ```
-claude plugin eval plugins/checkbox --allow-tools Write Edit --scaffold --no-publish --max-cost-usd 15
+claude plugin eval plugins/checkbox --allow-tools Write Edit Bash --scaffold --no-publish --max-cost-usd 15
 ```
 
 ### 11.2 Metrics
@@ -434,8 +438,7 @@ checkbox-odoo/
 ├── pyproject.toml               # dev tooling only (pytest, ruff); core has no deps
 ├── .claude-plugin/marketplace.json
 ├── docs/
-│   ├── ARCHITECTURE.md          # this file
-│   └── adr/                     # decisions about checkbox itself
+│   └── ARCHITECTURE.md          # this file
 ├── plugins/checkbox/             # the plugin (see §8.1)
 ├── adapters/                    # generated, never hand-edited
 ├── scripts/                     # build_adapters.py, check_rule_copies.py
@@ -483,10 +486,11 @@ Each phase follows explore → plan → implement → verify, and ends only when
 | D12 (v1.1.1) | `hooks/hooks.json` switched from exec form (`"command": "python3"`, `"args": [...]`) to shell form calling a new `bin/checkbox-hook` bash launcher, which walks `$PATH` by hand to find a real `python3`/`py -3`/`python`, skipping any match under a `WindowsApps` path segment | Confirmed live on a real Windows install (Python 3.12 present at a real path, but nothing on PATH answered to `python3` except the Microsoft Store's placeholder alias stub -- python.org's Windows installer only provides `python.exe`, and the stub is a real executable file, so `command -v`/PATH resolution alone can't tell it apart from a working interpreter). The first attempt at a fix was rejected after verifying real constraints, not for lack of trying: exec form is documented as no-shell, so no `\|\|` fallback chain is possible there. The `"shell"` hook field (verified against code.claude.com/docs/en/hooks, 2026-09-16) unblocked it: omitting `shell` already defaults to bash on Windows whenever Git Bash is installed, falling back to PowerShell only when it genuinely isn't -- so shell-form + a hand-walked `$PATH` loop (skipping `WindowsApps` matches, since that's the one stable, documented marker for the stub) works on the common case without needing POSIX/PowerShell-portable syntax at all. A per-OS `commandWindows` field exists in some hook schemas but isn't supported by the Claude Code marketplace validator (corroborated by Ponytail's own `tests/hooks-windows.test.js`, written after its issues #19 and #593 hit this exact class of bug) -- not needed here since the default-shell behavior already does the platform split. `bin/checkbox-hook` derives its own directory from `${BASH_SOURCE[0]}` rather than `$CLAUDE_PLUGIN_ROOT` (that substitution doesn't reach inside a script the hook command merely invokes) and via bash parameter expansion rather than the external `dirname` command, since the whole point of this script is coping with a `$PATH` that's missing things it should have. Remaining gap, not a regression: a Windows machine with no Git Bash at all still fails exactly as before (PowerShell is used, this script never runs) -- fail-open, no worse than pre-fix. Tested hermetically in `tests/test_checkbox_hook_launcher.py` (fake interpreters simulating the stub, no real Windows box needed) plus one true end-to-end case against the real interpreter and real `bin/checkbox`. The OpenCode npm plugin has the identical latent problem in `adapters/opencode/src/index.ts`'s `runCli` (it never goes through `hooks.json` at all, so it needed its own copy, not a shared fix): `findPython()`/`resolveOnPath()` there reimplement the same PATH-walk-skip-WindowsApps-then-`py`-then-`python` logic in TypeScript, since Bun's `spawn` also runs with no shell. Untestable end-to-end in this environment (no `bun` available -- same limitation as the rest of the npm plugin, ARCHITECTURE §13's P9 row); verified only via `node --experimental-strip-types --check` for syntax and by hand against the same logic already proven correct on the bash side | A user reports the no-Git-Bash case in practice, or Claude Code adds a supported per-OS hook command field |
 | D13 | `plugins/checkbox/.mcp.json`'s hardcoded `venv/bin/python3` stays as-is for Windows; no in-repo fix attempted. `checkbox doctor`'s `mcp_venv` check gains a Windows-only note naming the actual `venv\Scripts\python.exe` path and telling the user to register `checkbox-mcp` in their own project/user MCP config instead | Investigated a `"command": "python3"` (bare, PATH-resolved) bootstrap that would re-exec into the OS-correct venv path computed in Python (`cli.py`'s existing `sys.platform` ternary) -- rejected because it inherits D12's exact problem: on the Windows machine D12 was verified against, nothing on PATH answered to `python3`/`python` except the Store alias stub, which can't run the re-exec logic that would fix it. `py` (the Windows Python Launcher, D12's actual working fallback) is Windows-only naming, so no single command string is uniform across OSes. D12's fix doesn't transfer because MCP server commands are spawned with no shell and Claude Code has no per-OS command field (verified against code.claude.com/docs, 2026-09-17) -- unlike `hooks.json`, there's no shell-form escape hatch to run a `$PATH`-walk in first | Claude Code adds a supported per-OS MCP command field, or a real Windows non-Claude-host user needs `checkbox-mcp` badly enough to justify a manual per-machine `.mcp.json` edit becoming a documented setup step instead of a `doctor` note |
 | D15 | The OCA catalog is built from `github.com/OCA` via git partial clones (`--depth 1 --filter=blob:none --sparse`, branch = Odoo version, checkout pattern `*/__manifest__.py`), stored locally as `$DATA/oca/<version>.sqlite`, and searched with a deterministic keyword ranker (technical name +3 / display name +2 / summary +1 / category+depends +1 / prefix +0.5, exact technical-name query = 1000) -- not embeddings, not a third-party package | D10's "real network+disk cost" reason was measured away: a `sale-workflow@18.0` partial clone transfers ~1 MB / checks out ~1.8 MB, well under a full shallow clone's footprint, and `git log -1 --format=%cs` yields the last-commit-date maintenance flag for free. PyPI was probed and rejected (versioned-suffix `odoo-addon-<name>-<ver>` packages 404, no prefix-search API, no dev-status/commit date, coverage derived and partial); apps.odoo.com is JS-rendered (zero module links in HTML, module pages 301). Branch existence (`git ls-remote --heads --exit-code`) is the version-availability fact, making "exists on 17.0 but not 18.0" an explicit search result via `--all-versions`. GitHub's org-repos API is only ever hit 3 times per build and the result is cached (`$DATA/oca/repos.json`), so a rebuild never pays the rate limit; content transfers ride the git protocol, which is rate-limit-free. `git` is required only at build time; search is stdlib-only | A maintained config repo for OCA repositories proves more current than the GitHub org API, or an evaluator wants free-text relevance (embeddings) tested against the keyword baseline |
+| D16 | The guard's trust boundary is the three `.checkbox/` files and the project root, not only `custom_addons`: `pre-edit` denies Write/Edit on `approvals.json` (every level, `off` included, and before any project file is read) and on `local.json`/`profile.json` (strict); `pre-bash` denies `checkbox mode set` and `checkbox profile write` and shell writes to those two files in strict; every hook resolves the project root as the nearest `.checkbox/` at or above the edited file, then `cwd`, then `$CLAUDE_PROJECT_DIR`. A card's `addons` are module names, the unit the guard resolves a file to | Found in the 2026-10-11 review, each reproduced first: a valid `code` card could never unblock a strict edit (validation wanted an addons root, the guard a module name); the agent could write `approvals.json` or set the mode to `off` with the Write tool; and one `cd` made every hook a no-op because `cwd` follows `cd` (hooks reference, 2026-10-11). Leaving strict is therefore a human act, like approval (D6). Still a speed bump (§8.6): an agent with Bash can write files without the file tools | Claude Code gives plugins a way to protect paths declaratively |
 
 ## 15. Open questions (resolve in P0)
 
-1. **Stop loop guard.** What is the exact field name and semantics of the Stop hook's stop-active flag?
+1. **Stop loop guard.** What is the exact field name and semantics of the Stop hook's stop-active flag? **Resolved 2026-10-11:** `stop_hook_active` (boolean in the Stop payload); `hooks/stop.py` returns 0 when it is set.
 2. **SubagentStart output.** Does `additionalContext` reach plugin-defined subagents and built-in `Explore`/`Plan` alike?
 3. **File-tool names.** What are the current file-editing tool names (is `MultiEdit` still present)? Update the matchers.
 4. **scaffold_script.** What cwd and environment variables does it get? Can it locate its case directory? **Resolved in P5:** it runs as you (normal shell env, not the filtered `EVAL_*`-only allowlist), in the empty workspace, and finds its own directory via `$0` -- no discovery helper needed. Each case's `scaffold.sh` copies a `tests/fixtures/stubs/` tree straight into the workspace.
