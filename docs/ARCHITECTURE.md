@@ -161,7 +161,7 @@ Context, rejected options, open questions (free text).
 |---|---|
 | `verdict` | `skip` \| `standard` \| `config` \| `nocode` \| `module` \| `code` |
 | `evidence` | `;`-separated list of `kind \| ref`, where `kind` is `source`, `docs`, `oca`, `live` or `unverified` |
-| `evidence` (oca) | for `verdict: module`, an `oca` ref must be `OCA/<repo>/<module> branch=<ver> license=<L> last_commit=<YYYY-MM-DD\|unknown>` (`card_ref` from search); `card validate` rejects a missing field or a branch that isn't the profile's |
+| `evidence` (oca) | for `verdict: module`, an `oca` ref must be `OCA/<repo>/<module> branch=<ver> license=<L> last_commit=<YYYY-MM-DD\|unknown>` (`card_ref` from search); `card validate` rejects a missing field, a branch that isn't the profile's, and -- when a complete catalog is built for that branch -- a module the catalog does not contain |
 | `tier` | `-` \| `green` \| `amber` \| `red` (required when verdict is `nocode` with Python, `module`, or `code`) |
 | `addons` | Module names (the directory under a `custom_addons` root) the card authorizes changes in; `-` when none, at least one for `code` |
 | `status` | `proposed` \| `approved` \| `rejected` \| `superseded` |
@@ -291,9 +291,9 @@ All hooks use shell form through the launcher: `"command": "bash \"${CLAUDE_PLUG
 | `SessionStart` | `startup\|resume\|clear\|compact\|fork` | `additionalContext`: rendered ladder for the level + profile summary. If the profile is missing, a factual note that it is missing and that `/checkbox:init` creates it | lite, full, strict |
 | `UserPromptSubmit` | none | Compact ladder reminder (≤ 400 chars) | full, strict |
 | `SubagentStart` | all (narrow it with the entry's own `matcher` in `hooks.json`) | Compact ladder into subagents | full, strict |
-| `PreToolUse` | `Write\|Edit` (verify current file-tool names) | **strict:** deny edits under `custom_addons` when no approved card lists that module, and deny edits to `.checkbox/local.json`/`profile.json`. **full:** allow, and add a reminder if no card covers the module. **Every level:** deny edits to `.checkbox/approvals.json` | full, strict |
+| `PreToolUse` | `Write\|Edit\|NotebookEdit` | **strict:** deny edits under `custom_addons` when no approved card lists that module, and deny edits to `.checkbox/local.json`/`profile.json`. **full:** allow, and add a reminder if no card covers the module. **Every level:** deny edits to `.checkbox/approvals.json` | full, strict |
 | `PreToolUse` | `Bash` | Deny `checkbox approve`, writes to `.checkbox/approvals.json`, and SQL `UPDATE`/`DELETE` on ledger tables (heuristic). **strict:** also deny `checkbox mode set` and `checkbox profile write` | full, strict |
-| `PostToolUse` | `Write\|Edit` | Classify the file; `additionalContext` with tier and reasons; record the touched addon in session state | full, strict |
+| `PostToolUse` | `Write\|Edit\|NotebookEdit` | Classify the file; `additionalContext` with tier and reasons; record the touched addon in session state | full, strict |
 | `Stop` | none | If addon files were edited this session and a touched module has no card (**full:** any live card listing it; **strict:** an approved one), block **once** per session with the reason "decision card missing". Never blocks when `stop_hook_active` is set | full, strict |
 
 Hook contract facts (verified 2026-09-15, re-check in P0):
@@ -448,7 +448,8 @@ checkbox-odoo/
 ├── pyproject.toml               # dev tooling only (pytest, ruff); core has no deps
 ├── .claude-plugin/marketplace.json
 ├── docs/
-│   └── ARCHITECTURE.md          # this file
+│   ├── ARCHITECTURE.md          # this file
+│   └── benchmarks/              # dated eval run notes
 ├── plugins/checkbox/             # the plugin (see §8.1)
 ├── adapters/                    # generated, never hand-edited
 ├── scripts/                     # build_adapters.py, check_rule_copies.py
@@ -503,7 +504,7 @@ Each phase follows explore → plan → implement → verify, and ends only when
 
 1. **Stop loop guard.** What is the exact field name and semantics of the Stop hook's stop-active flag? **Resolved 2026-10-11:** `stop_hook_active` (boolean in the Stop payload); `hooks/stop.py` returns 0 when it is set.
 2. **SubagentStart output.** Does `additionalContext` reach plugin-defined subagents and built-in `Explore`/`Plan` alike?
-3. **File-tool names.** What are the current file-editing tool names (is `MultiEdit` still present)? Update the matchers.
+3. **File-tool names.** What are the current file-editing tool names (is `MultiEdit` still present)? Update the matchers. **Resolved 2026-10-11:** the hooks reference names `Edit`, `Write` and `NotebookEdit` ("`Edit.*` matches both `Edit` and `NotebookEdit`") and does not mention `MultiEdit`; the matchers are `Write|Edit|NotebookEdit`.
 4. **scaffold_script.** What cwd and environment variables does it get? Can it locate its case directory? **Resolved in P5:** it runs as you (normal shell env, not the filtered `EVAL_*`-only allowlist), in the empty workspace, and finds its own directory via `$0` -- no discovery helper needed. Each case's `scaffold.sh` copies a `tests/fixtures/stubs/` tree straight into the workspace.
 5. **Marketplace schema.** What does `.claude-plugin/marketplace.json` require for a plugin in a subdirectory?
 6. **Odoo.sh detection.** Is there a reliable environment signal, or does `init` always ask?

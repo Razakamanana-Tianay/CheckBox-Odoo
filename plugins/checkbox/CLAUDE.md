@@ -41,9 +41,9 @@ evals/                       ← claude plugin eval suite
   | `SessionStart` | `startup\|resume\|clear\|compact` | `session-start` |
   | `UserPromptSubmit` | — | `prompt` |
   | `SubagentStart` | — | `subagent-start` |
-  | `PreToolUse` | file-edit tools | `pre-edit` |
+  | `PreToolUse` | `Write\|Edit\|NotebookEdit` | `pre-edit` |
   | `PreToolUse` | `Bash` | `pre-bash` |
-  | `PostToolUse` | file-edit tools | `post-edit` |
+  | `PostToolUse` | `Write\|Edit\|NotebookEdit` | `post-edit` |
   | `Stop` | — | `stop` |
 
 - **After editing:** `/reload-plugins` in the running session, then check `/hooks` shows the entries as "Plugin Hooks".

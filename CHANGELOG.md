@@ -49,6 +49,16 @@ Notable changes to `checkbox`, most recent first. Versions follow semver per
 - `checkbox setup copilot` merges into an existing
   `.github/copilot-instructions.md` instead of overwriting it.
 
+- The OCA catalog keeps a module name that exists in two repositories
+  (key is repo + module), `search` notes a catalog older than 90 days, and
+  `card validate` rejects an OCA ref the complete local catalog does not
+  contain.
+- Hooks also match `NotebookEdit`.
+- Only a well-formed version, edition and hosting from `profile.json` are
+  rendered into the injected ladder.
+- The PII lint no longer flags document numbers such as `PO2024000123` as
+  VAT numbers.
+
 ### Fixed
 
 - Strict mode could never be unblocked: no valid card could cover a module.
