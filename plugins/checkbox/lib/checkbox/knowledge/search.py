@@ -11,6 +11,7 @@ when docs/live land.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +21,13 @@ from checkbox.knowledge import source as source_mod
 from checkbox.knowledge import store
 from checkbox.profile import Profile, resolve_addon_roots
 
+# Part of the index file name: bump it when the schema or what gets indexed
+# changes, so an index built by an older version is rebuilt, not reused.
+_INDEX_FORMAT = "2"
+
 
 def _index_path(roots: list[Path], version: str) -> Path:
-    key = f"{version}|" + "|".join(sorted(str(r) for r in roots))
+    key = f"{_INDEX_FORMAT}|{version}|" + "|".join(sorted(str(r) for r in roots))
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
     return paths.data_dir() / "source" / f"{digest}.sqlite"
 
@@ -66,10 +71,19 @@ def ensure_index(profile: Profile, project_root: Path, *, force: bool = False) -
     if db_path.is_file() and not force and not stale:
         return db_path
     docs = source_mod.build(roots, version)
-    con = store.connect(db_path)
-    store.clear(con)
-    store.index_documents(con, docs)
+    # Build beside the index and swap it in: a crash or a concurrent search
+    # never sees a cleared, half-filled index that looks up to date.
+    tmp = db_path.with_name(f".{db_path.name}.tmp-{os.getpid()}")
+    tmp.unlink(missing_ok=True)
+    con = store.connect(tmp)
+    try:
+        store.index_documents(con, docs)
+    except BaseException:
+        con.close()
+        tmp.unlink(missing_ok=True)
+        raise
     con.close()
+    os.replace(tmp, db_path)
     return db_path
 
 

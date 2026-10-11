@@ -23,7 +23,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-_SETTINGS_FIELD_TYPES = ("Boolean", "Selection")
 _SNIPPET_MAX = 300
 
 # Directories that never contain a manifest, a res.config.settings field,
@@ -135,7 +134,9 @@ def _settings_field_docs(py_file: Path, version: str) -> list[dict[str, Any]]:
                 continue
             if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)):
                 continue
-            if call.func.attr not in _SETTINGS_FIELD_TYPES:
+            # Any `fields.<Type>(...)`: a setting is not always a toggle
+            # (lock dates, thresholds, default accounts are Date/Float/Many2one).
+            if not (isinstance(call.func.value, ast.Name) and call.func.value.id == "fields"):
                 continue
             label = _first_str_arg(call)
             help_text = _kwarg_str(call, "help")
