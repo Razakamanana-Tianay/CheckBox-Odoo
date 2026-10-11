@@ -53,11 +53,10 @@ jobs:
 
       - run: python3 scripts/check_rule_copies.py
 
-  # The core is meant to run on Windows (ARCHITECTURE D12/D13) but has never
-  # been run there in CI. Informational until it has been green once.
+  # The core is meant to run on Windows (ARCHITECTURE D12/D13). First green
+  # run: 2026-10-11, after it caught a sign-off bug no Linux run could see.
   windows:
     runs-on: windows-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
