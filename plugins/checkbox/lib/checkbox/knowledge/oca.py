@@ -753,6 +753,13 @@ def _acquire_build_lock(data_root: Path, version: str) -> Path:
         try:
             fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
+            if sys.platform == "win32":
+                # os.kill(pid, 0) terminates the process on Windows instead of
+                # probing it, so a leftover lock is never taken over there.
+                raise RuntimeError(
+                    f"a `checkbox oca build` lock for {version} exists; if no build is "
+                    f"running, delete {lock}"
+                ) from None
             try:
                 pid = int(lock.read_text().strip() or 0)
                 os.kill(pid, 0)

@@ -846,3 +846,17 @@ def test_incomplete_catalog_is_reported_by_status_and_search(tmp_path, monkeypat
     assert "incomplete (1 repos" in capsys.readouterr().err
     assert cli.main(["oca", "status", "--data", str(data)]) == 0
     assert "INCOMPLETE: 1 repos" in capsys.readouterr().out
+
+
+def test_build_lock_never_signals_a_pid_on_windows(tmp_path, monkeypatch):
+    """`os.kill(pid, 0)` is a liveness probe on POSIX but terminates the
+    process on Windows (docs.python.org/3/library/os.html#os.kill)."""
+    import os
+
+    lock = tmp_path / ".build-18.0.lock"
+    lock.write_text("4242")
+    monkeypatch.setattr(oca_mod.sys, "platform", "win32")
+    monkeypatch.setattr(os, "kill", lambda *a: pytest.fail("os.kill called on Windows"))
+    with pytest.raises(RuntimeError, match="delete"):
+        oca_mod._acquire_build_lock(tmp_path, "18.0")
+    assert lock.read_text() == "4242"
