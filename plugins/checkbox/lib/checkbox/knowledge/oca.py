@@ -280,9 +280,14 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[str] | None:
         return None
 
 
-def _branch_exists(url: str, version: str, git: str) -> bool:
+def _branch_exists(url: str, version: str, git: str) -> bool | None:
+    """True/False when the remote answered, None when it could not be asked.
+    `--exit-code` makes git exit 2 for "no matching ref" (git-ls-remote(1));
+    every other failure (network, auth, timeout) is not evidence of absence."""
     proc = _run([git, "ls-remote", "--heads", "--exit-code", url, f"refs/heads/{version}"])
-    return proc is not None and proc.returncode == 0
+    if proc is None or proc.returncode not in (0, 2):
+        return None
+    return proc.returncode == 0
 
 
 def clone_repo(url: str, version: str, dest: Path, git: str) -> str | None:
@@ -297,7 +302,10 @@ def clone_repo(url: str, version: str, dest: Path, git: str) -> str | None:
     repo is reported as "error" -- never raised -- so one slow repo can't
     abort a 268-repo build.
     """
-    if not _branch_exists(url, version, git):
+    exists = _branch_exists(url, version, git)
+    if exists is None:
+        return "error"
+    if not exists:
         return None
     attempts = [
         [
@@ -808,9 +816,12 @@ def build(
     *repo_urls* maps repo name → clone URL; when omitted, repos come from
     `enumerate_oca_repos` (GitHub API with a local fallback). *clone* and
     *on_progress* are injectable for tests and for progress reporting.
-    Returns BuildStats; raises RuntimeError when no repo list can be found
-    or when `git` is not on PATH. The per-repo worktrees are deleted after
-    indexing -- the catalog, not the clone, is what's kept.
+    Returns BuildStats; raises RuntimeError when no repo list can be found,
+    when `git` is not on PATH, or when not a single module was found. Repos
+    that failed stay out of the checkpoint, and the checkpoint is kept while
+    any failed, so running the build again retries exactly those. The
+    per-repo worktrees are deleted after indexing -- the catalog, not the
+    clone, is what's kept.
     """
     if not VERSION_RE.fullmatch(version):
         raise RuntimeError(f"invalid Odoo version {version!r}: expected e.g. 18.0")
@@ -820,7 +831,10 @@ def build(
     stats = BuildStats(version=version)
     stats.db_path = str(_db_path(data_root, version))
 
-    if not force and Path(stats.db_path).is_file():
+    # A fresh checkpoint next to a built catalog means the last build left
+    # failed repos behind: a plain rerun resumes and retries only those.
+    partial = data_root / f".build-{version}.partial.jsonl"
+    if not force and Path(stats.db_path).is_file() and not _load_partial(partial):
         stats.already_built = True
         return stats
 
@@ -841,7 +855,6 @@ def build(
         stats.repos_total = len(repo_urls)
 
     lock = _acquire_build_lock(data_root, version)
-    partial = data_root / f".build-{version}.partial.jsonl"
     work = data_root / f".build-{version}"
     try:
         if force:
@@ -895,6 +908,14 @@ def build(
             _rmtree(work)
         lock.unlink(missing_ok=True)
 
+    if not rows:
+        # Never write an empty catalog: at search time it would read as
+        # "nothing on OCA". The checkpoint stays, so a rerun resumes.
+        raise RuntimeError(
+            f"no module found for Odoo {version} ({stats.repos_failed} repos failed, "
+            f"{stats.repos_no_branch} without a {version} branch): check the version "
+            "and the network, then run the build again"
+        )
     write_catalog(
         Path(stats.db_path),
         rows,
@@ -905,13 +926,30 @@ def build(
             "repos_failed": str(stats.repos_failed),
         },
     )
-    partial.unlink(missing_ok=True)
+    if not stats.repos_failed:
+        partial.unlink(missing_ok=True)
     stats.elapsed_seconds = time.time() - start
     return stats
 
 
+def missing_repos(db_path: Path) -> int:
+    """How many repos the build of *db_path* could not fetch (0 when the
+    catalog is complete or unreadable). A catalog with missing repos cannot
+    prove a module's absence."""
+    if not Path(db_path).is_file():
+        return 0
+    con = sqlite3.connect(str(db_path))
+    try:
+        row = con.execute("SELECT v FROM meta WHERE k = 'repos_failed'").fetchone()
+        return int(row[0]) if row else 0
+    except (sqlite3.Error, ValueError):
+        return 0
+    finally:
+        con.close()
+
+
 def catalog_status(data_root: Path | None = None) -> list[dict[str, str]]:
-    """One row per built catalog: version, module count, built_at."""
+    """One row per built catalog: version, module count, built_at, repos_failed."""
     data_root = data_root or (paths.data_dir() / "oca")
     status: list[dict[str, str]] = []
     for version in built_versions(data_root):
@@ -932,6 +970,7 @@ def catalog_status(data_root: Path | None = None) -> list[dict[str, str]]:
                 "version": version,
                 "modules": str(count),
                 "built_at": meta.get("built_at", ""),
+                "repos_failed": meta.get("repos_failed", "0"),
                 "db_path": str(db),
             }
         )

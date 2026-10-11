@@ -263,17 +263,20 @@ def resolve_addon_roots(profile: Profile, project_root: Path) -> list[Path]:
     and the project's own custom/third-party addons (relative to
     *project_root*, per Appendix B -- a different base than `odoo_source`).
     """
+    # Every profile path is relative to the project root (Appendix B), never
+    # to the process cwd; `root / x` keeps an absolute x as is.
+    project_root = Path(project_root).resolve()
     roots: list[Path] = []
     if profile.odoo_source:
-        base = Path(profile.odoo_source)
+        base = project_root / profile.odoo_source
         for rel in find_addon_roots(base):
             if rel in (".", "custom_addons"):
                 continue  # checkout root itself, or a dir outside Odoo's own layout
             roots.append(base / rel)
     if profile.enterprise_source:
-        roots.append(Path(profile.enterprise_source))
+        roots.append(project_root / profile.enterprise_source)
     for rel in (*profile.custom_addons, *profile.third_party_addons):
-        roots.append(Path(project_root) / rel)
+        roots.append(project_root / rel)
     return roots
 
 

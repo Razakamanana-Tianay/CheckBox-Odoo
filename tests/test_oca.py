@@ -273,17 +273,72 @@ def test_build_skips_repo_without_branch(tmp_path, monkeypatch):
     def clone(url, version, dest, git):
         return None  # no such branch
 
+    def clone_good(url, version, dest, git):
+        if "empty" in url:
+            return clone(url, version, dest, git)
+        _write_fake_repo(dest, [("sale_good", "Good", "summary")])
+        return "2024-01-01"
+
     stats = oca_mod.build(
         "18.0",
         force=True,
         data_root=data_root,
-        repo_urls={"empty-repo": "https://github.com/OCA/empty-repo"},
-        clone=clone,
+        repo_urls={"empty-repo": "https://github.com/OCA/empty-repo", "good": "g"},
+        clone=clone_good,
     )
     assert stats.repos_no_branch == 1
-    assert stats.modules == 0
-    rows = oca_mod.load_catalog(data_root / "18.0.sqlite")
-    assert rows == []
+    assert stats.modules == 1
+
+
+def test_build_with_no_module_at_all_writes_no_catalog(tmp_path):
+    """An empty catalog is indistinguishable from "nothing on OCA" at search
+    time, so a build that found no module (wrong version, or every repo
+    unreachable) must fail instead of marking the version as built."""
+    urls = {f"r{i}": "u" for i in range(3)}
+    for outcome in (None, "error"):
+        with pytest.raises(RuntimeError, match="no module"):
+            oca_mod.build("18.0", data_root=tmp_path, repo_urls=urls, clone=lambda *a: outcome)
+        assert not (tmp_path / "18.0.sqlite").exists()
+        assert oca_mod.catalog_status(tmp_path) == []
+
+
+def test_failed_repos_are_retried_by_a_plain_rerun(tmp_path):
+    down = [True]
+    calls: list[str] = []
+
+    def clone(url, version, dest, git):
+        calls.append(dest.name)
+        if dest.name == "flaky" and down[0]:
+            return "error"
+        _write_fake_repo(dest, [(f"{dest.name}_mod", dest.name, "s")])
+        return "2025-01-01"
+
+    urls = {"solid": "u", "flaky": "u"}
+    stats = oca_mod.build("18.0", data_root=tmp_path, repo_urls=urls, clone=clone)
+    assert (stats.repos_failed, stats.modules) == (1, 1)
+    assert (tmp_path / "18.0.sqlite").is_file()  # usable meanwhile
+    down[0] = False
+    calls.clear()
+    stats = oca_mod.build("18.0", data_root=tmp_path, repo_urls=urls, clone=clone)  # no --force
+    assert not stats.already_built and calls == ["flaky"]
+    assert (stats.repos_failed, stats.modules) == (0, 2)
+    assert oca_mod.build("18.0", data_root=tmp_path, repo_urls=urls, clone=clone).already_built
+
+
+def test_unreachable_remote_is_an_error_not_a_missing_branch(tmp_path):
+    """`git ls-remote --exit-code` exits 2 only when the ref is absent; any
+    other failure (network, auth) says nothing about the branch."""
+    fake = tmp_path / "git"
+    fake.write_text("#!/bin/sh\nexit ${FAKE_RC}\n", encoding="utf-8")
+    fake.chmod(0o755)
+    import os
+
+    for rc, expected in (("2", None), ("128", "error")):
+        os.environ["FAKE_RC"] = rc
+        try:
+            assert oca_mod.clone_repo("u", "18.0", tmp_path / "c", str(fake)) == expected
+        finally:
+            del os.environ["FAKE_RC"]
 
 
 def test_build_skips_installable_false(tmp_path, monkeypatch):
@@ -362,8 +417,8 @@ def test_build_rejects_bad_version_and_accepts_str_data_dir(tmp_path):
     with pytest.raises(RuntimeError, match="invalid Odoo version"):
         oca.build("../x", data_root=tmp_path)
     # CLI passes --data as a plain str; must not crash on .mkdir
-    stats = oca.build("18.0", data_root=str(tmp_path), repo_urls={".github": "x"}, git="git")
-    assert stats.repos_excluded == 1
+    with pytest.raises(RuntimeError, match="no module"):
+        oca.build("18.0", data_root=str(tmp_path), repo_urls={".github": "x"}, git="git")
 
 
 def test_build_survives_a_crashing_clone(tmp_path, monkeypatch):
@@ -636,7 +691,7 @@ def test_clone_repo_real_git_sparse_manifests_only(tmp_path):
 def test_clone_repo_real_git_missing_branch_is_none_and_bad_url_is_error(tmp_path):
     url = _make_git_repo(tmp_path / "src", "17.0", ["mod_a"])
     assert oca_mod.clone_repo(url, "18.0", tmp_path / "c1", "git") is None
-    assert oca_mod.clone_repo("file:///nonexistent/x", "18.0", tmp_path / "c2", "git") is None
+    assert oca_mod.clone_repo("file:///nonexistent/x", "18.0", tmp_path / "c2", "git") == "error"
 
 
 @pytest.mark.skipif(not _git_available(), reason="git not installed")
@@ -758,3 +813,36 @@ def test_query_prefix_of_a_display_name_word_still_matches():
     indexed = oca_mod._index_rows([row])
     assert oca_mod.score_module(oca_mod.tokenize("brand"), indexed[0]) == 0.5
     assert oca_mod.score_module(oca_mod.tokenize("odoo"), indexed[0]) > 0.5
+
+
+def test_incomplete_catalog_is_reported_by_status_and_search(tmp_path, monkeypatch, capsys):
+    from checkbox import cli
+
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path))
+    data = tmp_path / "oca"
+
+    def clone(url, version, dest, git):
+        if dest.name == "down":
+            return "error"
+        _write_fake_repo(dest, [("sale_good", "Good", "summary")])
+        return "2025-01-01"
+
+    oca_mod.build("18.0", data_root=data, repo_urls={"ok": "u", "down": "u"}, clone=clone)
+    assert oca_mod.missing_repos(data / "18.0.sqlite") == 1
+    assert oca_mod.catalog_status(data)[0]["repos_failed"] == "1"
+    profile = tmp_path / "profile.json"
+    profile.write_text('{"schema": 1, "odoo_version": "18.0"}', encoding="utf-8")
+    argv = [
+        "search",
+        "barcode",
+        "--kind",
+        "oca",
+        "--profile",
+        str(profile),
+        "--root",
+        str(tmp_path),
+    ]
+    assert cli.main(argv) == 0
+    assert "incomplete (1 repos" in capsys.readouterr().err
+    assert cli.main(["oca", "status", "--data", str(data)]) == 0
+    assert "INCOMPLETE: 1 repos" in capsys.readouterr().out

@@ -30,6 +30,8 @@ you do that with what you return.
    find a clean settings toggle or already-installed module, you're done
    -- don't also go looking for rung 5 evidence unless asked.
 5. If nothing found after trying a few keyword variations, say so plainly.
+   If `checkbox search` warns that the OCA catalog is incomplete, a module
+   it did not find is `unverified`, never proof that no module exists.
 
 ## What to return
 

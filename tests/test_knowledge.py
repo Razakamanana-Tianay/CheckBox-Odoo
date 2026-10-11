@@ -311,3 +311,18 @@ def test_search_does_not_rebuild_when_only_a_noise_dir_file_changes(tmp_path, mo
 
     db_path_again = search_mod.ensure_index(profile, project_root=REPO_ROOT)
     assert db_path_again.stat().st_mtime == first_mtime  # not rebuilt
+
+
+def test_relative_odoo_source_resolves_against_the_project_not_the_cwd(tmp_path, monkeypatch):
+    import shutil
+
+    from checkbox.profile import Profile, resolve_addon_roots
+
+    project = tmp_path / "proj"
+    shutil.copytree(STUB_18CE, project / "odoo-src")
+    (project / "sub").mkdir()
+    profile = Profile(odoo_version="18.0", odoo_source="odoo-src")
+    monkeypatch.chdir(project / "sub")
+    roots = resolve_addon_roots(profile, project)
+    assert roots and all(r.is_absolute() and r.is_dir() for r in roots)
+    assert all(project in r.parents for r in roots)

@@ -199,3 +199,32 @@ def test_mode_set_then_show_roundtrip(tmp_path):
 def test_mode_set_rejects_bad_level():
     result = _run("mode", "set", "bogus", "--root", str(PROJECT_18CE))
     assert result.returncode == 2  # argparse choices rejects it before cmd_mode_set runs
+
+
+def test_documented_search_command_finds_the_stub_from_the_repo_root(tmp_path):
+    """The P3 check command in CLAUDE.md: a standalone --profile file whose
+    relative odoo_source is resolved against the project root (cwd here)."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(repo / "plugins" / "checkbox" / "bin" / "checkbox"),
+            "search",
+            "purchase approval",
+            "--profile",
+            "tests/fixtures/profiles/18-ce.json",
+            "--json",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "CHECKBOX_DATA_DIR": str(tmp_path)},
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout), "expected at least one source hit"
