@@ -763,8 +763,8 @@ def _acquire_build_lock(data_root: Path, version: str) -> Path:
                 # os.kill(pid, 0) terminates the process on Windows instead of
                 # probing it, so a leftover lock is never taken over there.
                 raise RuntimeError(
-                    f"a `checkbox oca build` lock for {version} exists; if no build is "
-                    f"running, delete {lock}"
+                    f"another `checkbox oca build` for {version} may be running (its lock "
+                    f"exists); if not, delete {lock}"
                 ) from None
             try:
                 pid = int(lock.read_text().strip() or 0)

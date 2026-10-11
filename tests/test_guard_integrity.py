@@ -247,6 +247,25 @@ def test_post_edit_and_stop_share_state_across_a_cd(tmp_path, capsys):
 # -- approval edge cases ------------------------------------------------------
 
 
+def test_sign_off_leaves_no_temp_file_and_no_open_descriptor(tmp_path):
+    """mkstemp's descriptor has to be closed before the rename: Windows
+    refuses to replace a file that is still open (seen in CI, WinError 32)."""
+    import os
+
+    root = _project(tmp_path)
+    _write_card(root, "mymod")
+    fd_dir = Path("/proc/self/fd")
+    before = len(list(fd_dir.iterdir())) if fd_dir.is_dir() else None
+    approvals.approve(root, "0001", approver="t")
+    assert sorted(p.name for p in (root / ".checkbox").iterdir() if p.is_file()) == [
+        "approvals.json",
+        "profile.json",
+    ]
+    if before is not None:
+        assert len(list(fd_dir.iterdir())) == before
+    assert os.path.getsize(root / ".checkbox" / "approvals.json") > 0
+
+
 def test_approve_rejects_ids_that_are_not_four_digits(tmp_path):
     root = _project(tmp_path)
     _write_card(root, "mymod")

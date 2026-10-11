@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BIN = REPO_ROOT / "plugins" / "checkbox" / "bin" / "checkbox"
 PROJECT_18CE = REPO_ROOT / "tests" / "fixtures" / "projects" / "18-ce"
@@ -41,6 +43,7 @@ def test_doctor_json():
     assert "mcp_venv" in data
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="simulates the stub with a POSIX script")
 def test_doctor_flags_a_windows_store_python3_stub(tmp_path):
     stub_dir = tmp_path / "WindowsApps"
     stub_dir.mkdir()

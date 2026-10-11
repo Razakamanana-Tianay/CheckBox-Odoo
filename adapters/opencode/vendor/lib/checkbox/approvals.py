@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -88,21 +89,14 @@ def _write_atomic(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
-        with open(tmp_name, "w", encoding="utf-8") as handle:
+        # fdopen, not open(tmp_name): mkstemp's descriptor must be the one that
+        # gets closed, or Windows refuses the rename below (WinError 32).
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2, sort_keys=True)
             handle.write("\n")
-        os_replace(tmp_name, path)
+        os.replace(tmp_name, path)
     finally:
         Path(tmp_name).unlink(missing_ok=True)
-
-
-def os_replace(src: str, dst: Path) -> None:
-    """Swap *src* over *dst*. Split out so tests can monkeypatch the rename
-    and so the import stays stdlib-only (os.replace is imported lazily to
-    keep this module's failed-hook path free of any syscalls on import)."""
-    import os
-
-    os.replace(src, dst)
 
 
 def approve(

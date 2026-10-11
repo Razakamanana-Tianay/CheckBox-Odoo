@@ -325,6 +325,7 @@ def test_failed_repos_are_retried_by_a_plain_rerun(tmp_path):
     assert oca_mod.build("18.0", data_root=tmp_path, repo_urls=urls, clone=clone).already_built
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fake git is a POSIX shell script")
 def test_unreachable_remote_is_an_error_not_a_missing_branch(tmp_path):
     """`git ls-remote --exit-code` exits 2 only when the ref is absent; any
     other failure (network, auth) says nothing about the branch."""
@@ -740,6 +741,8 @@ def test_concurrent_build_is_refused_and_stale_lock_is_taken_over(tmp_path):
     lock = oca_mod._acquire_build_lock(tmp_path, "18.0")
     with pytest.raises(RuntimeError, match="another"):
         oca_mod._acquire_build_lock(tmp_path, "18.0")
+    if sys.platform == "win32":
+        return  # no pid probe there: a leftover lock is never taken over
     lock.unlink()
     lock.write_text("999999999")  # no such pid
     assert oca_mod._acquire_build_lock(tmp_path, "18.0") == lock
