@@ -99,3 +99,15 @@ def test_report_carries_content_sha256(tmp_path):
         (ADAPTERS / "cursor" / "checkbox.mdc").read_text(encoding="utf-8").encode("utf-8")
     ).hexdigest()
     assert entry["sha256"] == expected
+
+
+def test_copilot_merges_into_an_existing_instructions_file(tmp_path):
+    target = tmp_path / ".github" / "copilot-instructions.md"
+    target.parent.mkdir()
+    target.write_text("# Our team rules\nAlways use tabs.\n", encoding="utf-8")
+    report = _install(tmp_path, "copilot")
+    assert report["files"][0]["action"] == "append"
+    text = target.read_text(encoding="utf-8")
+    assert text.startswith("# Our team rules\nAlways use tabs.\n")
+    assert "Odoo change policy (checkbox)" in text
+    assert _install(tmp_path, "copilot")["files"][0]["action"] == "skip"
