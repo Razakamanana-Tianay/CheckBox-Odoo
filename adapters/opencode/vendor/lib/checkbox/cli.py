@@ -629,4 +629,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except profile_mod.ProfileError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2

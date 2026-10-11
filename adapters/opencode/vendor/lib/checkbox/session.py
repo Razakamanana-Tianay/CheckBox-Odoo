@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from checkbox.paths import ensure_state_gitignore
+
 _MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
 
@@ -50,6 +52,7 @@ def load(root: Path, session_id: str) -> dict[str, Any]:
 
 def save(root: Path, session_id: str, state: dict[str, Any]) -> Path:
     path = _session_path(root, session_id)
+    ensure_state_gitignore(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
