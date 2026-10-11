@@ -171,3 +171,47 @@ def test_rules_verify_real_18_smoke():
         pytest.skip("ODOO18_SRC unset")
     errors = rules_mod.verify("18.0", Path(root))
     assert errors == []
+
+
+# -- existing rules, shapes they used to miss (2026-10-11 review) -------------
+
+
+def _classify_text(tmp_path: Path, name: str, body: str) -> dict:
+    path = tmp_path / name
+    path.write_text(body, encoding="utf-8")
+    return classify_mod.classify_file(path, "18.0")
+
+
+@pytest.mark.parametrize(
+    "receiver",
+    ["request.env.cr", "move.env.cr", "self.env.cr", "self._cr", "cr", "records.sudo().env.cr"],
+)
+def test_raw_sql_is_red_on_any_cursor_receiver(tmp_path, receiver):
+    body = f"def f(self, move, cr, request, records):\n    {receiver}.execute('SELECT 1')\n"
+    result = _classify_text(tmp_path, "x.py", body)
+    assert "python_call:execute" in [r["rule_id"] for r in result["reasons"]]
+    assert result["tier"] == "red"
+
+
+def test_execute_on_a_non_cursor_stays_green(tmp_path):
+    body = "def f(pool, job):\n    pool.execute(job)\n    job.runner.execute()\n"
+    assert _classify_text(tmp_path, "x.py", body)["tier"] == "green"
+
+
+def test_superuser_id_attribute_form_is_red(tmp_path):
+    body = "import odoo\n\ndef f(env):\n    return env(user=odoo.SUPERUSER_ID)\n"
+    result = _classify_text(tmp_path, "x.py", body)
+    assert [r["rule_id"] for r in result["reasons"]] == ["python_name:SUPERUSER_ID"]
+
+
+def test_noupdate_on_a_data_element_is_amber(tmp_path):
+    body = "<odoo><data noupdate='1'><record id='a' model='res.partner'/></data></odoo>"
+    result = _classify_text(tmp_path, "data.xml", body)
+    assert [r["rule_id"] for r in result["reasons"]] == ["xml:noupdate"]
+    assert result["tier"] == "amber"
+
+
+def test_unparseable_xml_is_amber_like_unparseable_python(tmp_path):
+    result = _classify_text(tmp_path, "broken.xml", "<odoo><record model='ir.rule'>")
+    assert [r["rule_id"] for r in result["reasons"]] == ["parse-error"]
+    assert result["tier"] == "amber"
