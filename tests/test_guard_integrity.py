@@ -409,3 +409,54 @@ def test_unreadable_profile_does_not_block_when_the_mode_is_explicitly_off(tmp_p
     (root / ".checkbox" / "local.json").write_text('{"mode": "off"}', encoding="utf-8")
     pre_edit._run(_edit(root))
     assert _decision(capsys) is None
+
+
+# -- the card's tier is checked against the classifier, not taken on trust ----
+
+_RED_CODE = (
+    "from odoo import models\n\n\nclass M(models.Model):\n    _inherit = 'account.move'\n\n"
+    "    def _post(self, soft=True):\n        return super()._post(soft)\n"
+)
+
+
+def test_a_card_cannot_be_signed_off_below_the_tier_of_the_code_it_covers(tmp_path):
+    root = _project(tmp_path)
+    (root / MODULE_FILE).write_text(_RED_CODE, encoding="utf-8")
+    _write_card(root, "mymod", tier="green")
+    with pytest.raises(ValueError, match="classifies red"):
+        approvals.approve(root, "0001", approver="t")
+    card_file = _write_card(root, "mymod", tier="red")
+    card_file.write_text(
+        card_file.read_text().replace("unverified | none", "source | x"), encoding="utf-8"
+    )
+    (root / ".checkbox" / "decisions" / "0001-ledger.md").write_text("report\n", encoding="utf-8")
+    assert approvals.approve(root, "0001", approver="t")["card_id"] == "0001"
+
+
+def test_a_module_with_no_code_yet_can_still_be_signed_off(tmp_path):
+    root = _project(tmp_path)
+    _write_card(root, "new_module", tier="green")
+    assert approvals.approve(root, "0001", approver="t")["card_id"] == "0001"
+
+
+@pytest.mark.parametrize("mode", ["full", "strict"])
+def test_editing_above_the_cards_tier_is_flagged_and_blocks_the_stop_once(tmp_path, capsys, mode):
+    root = _project(tmp_path, mode)
+    _write_card(root, "mymod", tier="green")
+    approvals.approve(root, "0001", approver="t")
+    (root / MODULE_FILE).write_text(_RED_CODE, encoding="utf-8")
+    post_edit._run(_edit(root))
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "card 0001 declares tier green" in context
+    assert stop._run({"cwd": str(root), "session_id": "s1"}) == 2
+    assert "tier" in capsys.readouterr().err
+    assert stop._run({"cwd": str(root), "session_id": "s1"}) == 0  # once
+
+
+def test_no_tier_block_when_the_card_already_declares_the_classified_tier(tmp_path, capsys):
+    root = _project(tmp_path, "full")
+    _write_card(root, "mymod", tier="red")
+    (root / MODULE_FILE).write_text(_RED_CODE, encoding="utf-8")
+    post_edit._run(_edit(root))
+    assert "declares tier" not in capsys.readouterr().out
+    assert stop._run({"cwd": str(root), "session_id": "s1"}) == 0

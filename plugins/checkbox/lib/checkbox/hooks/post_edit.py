@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from checkbox import approvals
 from checkbox import mode as mode_mod
 from checkbox import session as session_mod
 from checkbox.hooks import guard
@@ -51,6 +52,15 @@ def _run(payload: dict[str, Any]) -> None:
     for finding in findings[:6]:
         loc = f":{finding['line']}" if finding.get("line") else ""
         lines.append(f"  {finding['rule_id']}{loc} -- {finding['detail']}")
+    if addon:
+        session_mod.record_classified_tier(root, str(session_id), addon, result["tier"])
+        declared = approvals.declared_tier(root, addon)
+        if declared and approvals.TIER_ORDER[result["tier"]] > approvals.TIER_ORDER[declared[1]]:
+            lines.append(
+                f"card {declared[0]} declares tier {declared[1]} for '{addon}', below this "
+                f"file's {result['tier']}: the card's tier has to be raised to match "
+                "(editing the card voids its approval)"
+            )
     if result["tier"] == "red":
         lines.append(
             "red change: a human must read every line, a ledger-reviewer "

@@ -38,23 +38,36 @@ def _run(payload: dict[str, Any]) -> int | None:
     session_id = str(payload.get("session_id") or "unknown")
     state = session_mod.load(root, session_id)
     touched = [a for a in state.get("touched_addons", []) if a]
-    if not touched:
-        return 0
     has_card = approvals.covers_addon if resolved_mode == "strict" else approvals.lists_addon
-    uncovered = [a for a in touched if not has_card(root, a)]
-    if not uncovered:
+    uncovered = sorted(a for a in touched if not has_card(root, a))
+    under_tiered = []
+    for addon, tier in sorted((state.get("classified_tiers") or {}).items()):
+        declared = approvals.declared_tier(root, addon)
+        if declared and approvals.TIER_ORDER.get(tier, 0) > approvals.TIER_ORDER[declared[1]]:
+            under_tiered.append(f"{addon} (card {declared[0]}: {declared[1]}, code: {tier})")
+    if not uncovered and not under_tiered:
         return 0
     if int(state.get("stop_block_count", 0)) > 0:
         return 0  # already blocked once this session; don't loop
     session_mod.increment_stop_block_count(root, session_id)
+    parts = []
+    if uncovered:
+        parts.append(
+            f"addon files were edited this session ({', '.join(uncovered)}) and no "
+            + ("approved " if resolved_mode == "strict" else "")
+            + "decision card lists them. Walk the ladder and draft a card with "
+            "`checkbox card next-id`; a human approves it with `checkbox approve <id>`."
+        )
+    if under_tiered:
+        parts.append(
+            "the code classifies above its card's tier: "
+            + "; ".join(under_tiered)
+            + ". Raise the card's tier to match (that voids its approval)."
+        )
     sys.stderr.write(
-        "checkbox: stopping blocked once -- addon files were edited this session "
-        + f"({', '.join(sorted(uncovered))}) and no "
-        + ("approved " if resolved_mode == "strict" else "")
-        + "decision card lists them. "
-        + "Walk the ladder and draft a card with `checkbox card next-id`; a human "
-        + "approves it with `checkbox approve <id>`. Run /checkbox:mode if you "
-        + "intend to disable this."
+        "checkbox: stopping blocked once -- "
+        + " Also, ".join(parts)
+        + " Run /checkbox:mode if you intend to disable this."
     )
     return 2
 

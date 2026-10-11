@@ -28,6 +28,7 @@ from checkbox import card as card_mod
 from checkbox import profile as profile_mod
 
 _FENCE_RE = card_mod._FENCE_RE  # noqa: SLF001 -- same fence the parser uses
+TIER_ORDER = {"green": 0, "amber": 1, "red": 2}
 _LEDGER_SUFFIX = "-ledger.md"
 _CARD_ID_RE = re.compile(r"^\d{4}$")
 
@@ -141,6 +142,18 @@ def approve(
     if card.get("status") != "proposed":
         raise ValueError(f"card {card_id} status is {card.get('status')!r}, not 'proposed'")
 
+    # The tier is not taken on trust: code that already exists in the listed
+    # modules is classified, and a card declaring less cannot be signed off.
+    declared = card.get("tier", "-") if card.get("tier", "-") in TIER_ORDER else "green"
+    for module in card.get("addons", []) if profile is not None else []:
+        finding = _module_finding(root, profile, module, profile.odoo_version or "18.0")
+        if finding and TIER_ORDER[finding["tier"]] > TIER_ORDER[declared]:
+            raise ValueError(
+                f"card {card_id} declares tier {declared}, but module {module!r} classifies "
+                f"{finding['tier']} ({finding['rule_id']} in {Path(finding['file']).name}); "
+                "raise the card's tier to match first (§6.2)"
+            )
+
     ledger_report: str | None = None
     if card.get("tier") == "red":
         for item in card.get("evidence", []):
@@ -180,18 +193,57 @@ def is_approved(root: Path, card_id: str, raw_text: str) -> bool:
     return bool(entry) and entry.get("hash") == card_hash(raw_text)
 
 
-def lists_addon(root: Path, addon: str) -> list[str]:
-    """Ids of live cards (`proposed` or `approved`, approved or not) whose
-    `addons` list includes *addon* -- "a card exists for this module"."""
-    ids: list[str] = []
+def _live_cards(root: Path, addon: str) -> list[tuple[str, dict[str, Any]]]:
+    """(id, card) for every live card (`proposed` or `approved`, signed off
+    or not) whose `addons` list includes *addon*."""
+    cards: list[tuple[str, dict[str, Any]]] = []
     for path in sorted((Path(root) / ".checkbox" / "decisions").glob("[0-9][0-9][0-9][0-9]-*.md")):
         try:
             card = card_mod.parse(path.read_text(encoding="utf-8"))
         except (ValueError, OSError):
             continue
         if addon in card.get("addons", []) and card.get("status") in ("proposed", "approved"):
-            ids.append(path.name[:4])
-    return ids
+            cards.append((path.name[:4], card))
+    return cards
+
+
+def lists_addon(root: Path, addon: str) -> list[str]:
+    """Ids of the live cards listing *addon* -- "a card exists for this module"."""
+    return [card_id for card_id, _card in _live_cards(root, addon)]
+
+
+def declared_tier(root: Path, addon: str) -> tuple[str, str] | None:
+    """(card id, tier) of the highest tier any live card declares for *addon*
+    (`-` counts as green), or None when no card lists it."""
+    best: tuple[str, str] | None = None
+    for card_id, card in _live_cards(root, addon):
+        tier = card.get("tier", "-")
+        tier = tier if tier in TIER_ORDER else "green"
+        if best is None or TIER_ORDER[tier] > TIER_ORDER[best[1]]:
+            best = (card_id, tier)
+    return best
+
+
+def _module_finding(root: Path, profile: Any, module: str, version: str) -> dict[str, Any] | None:
+    """The highest-tier classifier finding in *module*'s existing files, or
+    None (no such directory yet, or nothing above green)."""
+    import os
+
+    from checkbox.risk import classify as classify_mod
+
+    worst: dict[str, Any] | None = None
+    for addon_root in getattr(profile, "custom_addons", None) or []:
+        module_dir = Path(root) / addon_root / module
+        for dirpath, dirnames, filenames in os.walk(module_dir):
+            dirnames[:] = [d for d in dirnames if d not in ("static", "i18n", "__pycache__")]
+            for name in filenames:
+                if not name.endswith((".py", ".xml", ".csv")):
+                    continue
+                for finding in classify_mod.classify_file(Path(dirpath) / name, version)["reasons"]:
+                    worst_tier = worst["tier"] if worst else "green"
+                    if TIER_ORDER.get(finding["tier"], 0) > TIER_ORDER[worst_tier]:
+                        worst = finding
+    return worst
 
 
 def covers_addon(root: Path, addon: str) -> list[str]:

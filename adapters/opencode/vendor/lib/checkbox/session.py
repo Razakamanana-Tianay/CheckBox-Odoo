@@ -28,7 +28,7 @@ def _default() -> dict[str, Any]:
     # `record_touched_addon(...).append(...)` would leak across sessions --
     # a single module-level default dict, shallow-copied per call, would
     # leave every copy pointing at the same nested list object.
-    return {"touched_addons": [], "cards_seen": [], "stop_block_count": 0}
+    return {"touched_addons": [], "classified_tiers": {}, "stop_block_count": 0}
 
 
 def _session_path(root: Path, session_id: str) -> Path:
@@ -97,3 +97,13 @@ def increment_stop_block_count(root: Path, session_id: str) -> int:
     state["stop_block_count"] = int(state.get("stop_block_count", 0)) + 1
     save(root, session_id, state)
     return state["stop_block_count"]
+
+
+def record_classified_tier(root: Path, session_id: str, addon: str, tier: str) -> None:
+    """Remember the highest classifier tier seen for *addon* this session, so
+    the Stop hook can compare it with the card without re-reading any file."""
+    order = {"green": 0, "amber": 1, "red": 2}
+    state = load(root, session_id)
+    if order.get(tier, 0) > order.get(state["classified_tiers"].get(addon, "green"), 0):
+        state["classified_tiers"][addon] = tier
+        save(root, session_id, state)
