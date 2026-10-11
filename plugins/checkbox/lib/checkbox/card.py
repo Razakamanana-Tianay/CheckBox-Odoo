@@ -40,7 +40,12 @@ _KEY_LINE_RE = re.compile(r"^([a-z_]+):\s*(.*)$")
 # nothing extra since the lint is a courtesy check, not the only defense.
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}")
 _IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
-_VAT_RE = re.compile(r"\b[A-Z]{2}\d{8,12}\b")
+# Country prefixes that issue VAT numbers of this shape (EU members, plus
+# GB/CH/NO); any two letters would also flag document numbers (PO2024000123).
+_VAT_RE = re.compile(
+    r"\b(?:AT|BE|BG|CY|CZ|DE|DK|EE|EL|ES|FI|FR|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK"
+    r"|GB|CH|NO)[A-Z]?\d{8,12}\b"
+)
 
 
 def parse(text: str) -> dict[str, Any]:
@@ -180,9 +185,26 @@ def validate(
     return errors
 
 
+def _oca_catalog_error(repo: str, module: str, branch: str) -> str | None:
+    """The module must be in the local catalog for that branch -- when one is
+    built and complete. No catalog, or an incomplete one, proves nothing."""
+    from checkbox import paths
+    from checkbox.knowledge import oca
+
+    db = paths.data_dir() / "oca" / f"{branch}.sqlite"
+    if not db.is_file() or oca.missing_repos(db) or oca.has_module(db, repo, module):
+        return None
+    return (
+        f"oca evidence OCA/{repo}/{module} is not in the local OCA catalog for {branch} "
+        "(`checkbox search --kind oca` lists what is; `checkbox oca build --force` refreshes it)"
+    )
+
+
 def _check_oca_ref(ref: str, profile: Any) -> list[str]:
     """Rung-5 rule (rules/ladder.md): an OCA module must be on this project's
     branch and the card must carry its license and repo last-commit date."""
+    from checkbox.knowledge import oca
+
     hint = "use `card_ref` from `checkbox search --kind oca`"
     match = _OCA_REF_RE.match(ref)
     if not match:
@@ -206,4 +228,9 @@ def _check_oca_ref(ref: str, profile: Any) -> list[str]:
             f"oca evidence is for branch {tokens['branch']}, but this project is on {version}; "
             "a module from another branch does not satisfy rung 5"
         )
+    if not errors and oca.VERSION_RE.fullmatch(tokens["branch"]):
+        _prefix, repo, module = ref.split()[0].split("/")
+        missing = _oca_catalog_error(repo, module, tokens["branch"])
+        if missing:
+            errors.append(missing)
     return errors

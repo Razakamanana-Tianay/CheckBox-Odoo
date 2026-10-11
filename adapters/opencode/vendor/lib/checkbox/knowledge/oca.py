@@ -91,6 +91,10 @@ NON_MODULE_REPOS = frozenset(
 # a maintained module almost always gets touched between release trains.
 STALE_DAYS = 540
 
+# A catalog older than this is flagged at search time: long enough not to nag,
+# short enough that a module published since is not silently missing.
+CATALOG_MAX_AGE_DAYS = 90
+
 VERSION_RE = re.compile(r"\d+\.\d+")
 
 _STOPWORDS = frozenset(
@@ -116,7 +120,7 @@ _STOPWORDS = frozenset(
 # the catalog is a few thousand rows, small enough to score on every query.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS modules (
-    technical_name TEXT PRIMARY KEY,
+    technical_name TEXT NOT NULL,
     name TEXT NOT NULL,
     summary TEXT NOT NULL,
     license TEXT,
@@ -128,7 +132,9 @@ CREATE TABLE IF NOT EXISTS modules (
     maintainers TEXT,
     author TEXT,
     last_commit TEXT,
-    website TEXT
+    website TEXT,
+    -- the same technical name can live in two repositories
+    PRIMARY KEY (repo, technical_name)
 );
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 """
@@ -719,7 +725,7 @@ def search_catalog(query: str, db_path: Path, limit: int = 10) -> list[dict[str,
     indexed = _index_rows(rows)
     scored = [(score_module(query_tokens, item, query), item.row) for item in indexed]
     scored = [pair for pair in scored if pair[0] > 0]
-    scored.sort(key=lambda pair: (-pair[0], pair[1]["technical_name"]))
+    scored.sort(key=lambda pair: (-pair[0], pair[1]["technical_name"], pair[1]["repo"]))
     return [to_evidence(row, score) for score, row in scored[:limit]]
 
 
@@ -939,20 +945,45 @@ def build(
     return stats
 
 
+def catalog_meta(db_path: Path) -> dict[str, str]:
+    """The build's own record (`built_at`, `repos_failed`, ...); {} when the
+    catalog is missing or unreadable."""
+    if not Path(db_path).is_file():
+        return {}
+    con = sqlite3.connect(str(db_path))
+    try:
+        return dict(con.execute("SELECT k, v FROM meta").fetchall())
+    except sqlite3.Error:
+        return {}
+    finally:
+        con.close()
+
+
 def missing_repos(db_path: Path) -> int:
     """How many repos the build of *db_path* could not fetch (0 when the
     catalog is complete or unreadable). A catalog with missing repos cannot
     prove a module's absence."""
-    if not Path(db_path).is_file():
-        return 0
-    con = sqlite3.connect(str(db_path))
     try:
-        row = con.execute("SELECT v FROM meta WHERE k = 'repos_failed'").fetchone()
-        return int(row[0]) if row else 0
-    except (sqlite3.Error, ValueError):
+        return int(catalog_meta(db_path).get("repos_failed", 0))
+    except ValueError:
         return 0
-    finally:
-        con.close()
+
+
+def built_before(db_path: Path, days: int = CATALOG_MAX_AGE_DAYS) -> str | None:
+    """The catalog's build date (`YYYY-MM-DD`) when it is older than *days*,
+    else None. OCA moves on: a module added since is absent from an old
+    catalog."""
+    built = catalog_meta(db_path).get("built_at", "")[:10]
+    try:
+        return built if (date.today() - date.fromisoformat(built)).days > days else None
+    except ValueError:
+        return None
+
+
+def has_module(db_path: Path, repo: str, technical_name: str) -> bool:
+    return any(
+        r["repo"] == repo and r["technical_name"] == technical_name for r in load_catalog(db_path)
+    )
 
 
 def catalog_status(data_root: Path | None = None) -> list[dict[str, str]]:

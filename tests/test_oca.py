@@ -860,3 +860,31 @@ def test_build_lock_never_signals_a_pid_on_windows(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="delete"):
         oca_mod._acquire_build_lock(tmp_path, "18.0")
     assert lock.read_text() == "4242"
+
+
+def test_same_module_name_in_two_repos_keeps_both_rows(tmp_path):
+    row = {"name": "N", "summary": "widget", "version": "18.0"}
+    db = tmp_path / "18.0.sqlite"
+    oca_mod.write_catalog(
+        db,
+        [
+            {**row, "technical_name": "dup", "repo": "a"},
+            {**row, "technical_name": "dup", "repo": "b"},
+        ],
+    )
+    assert sorted(r["repo"] for r in oca_mod.load_catalog(db)) == ["a", "b"]
+    assert {h["ref"] for h in oca_mod.search_catalog("dup", db)} == {"OCA/a/dup", "OCA/b/dup"}
+
+
+def test_search_warns_when_the_catalog_is_old(tmp_path, monkeypatch, capsys):
+    from checkbox import cli
+
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path))
+    row = {"technical_name": "a", "name": "A", "summary": "widget", "version": "18.0", "repo": "r"}
+    profile = tmp_path / "profile.json"
+    profile.write_text('{"schema": 1, "odoo_version": "18.0"}', encoding="utf-8")
+    argv = ["search", "widget", "--kind", "oca", "--profile", str(profile), "--root", str(tmp_path)]
+    for built_at, warned in (("2020-01-01T00:00:00Z", True), ("2999-01-01T00:00:00Z", False)):
+        oca_mod.write_catalog(tmp_path / "oca" / "18.0.sqlite", [row], extra={"built_at": built_at})
+        assert cli.main(argv) == 0
+        assert ("was built on 2020-01-01" in capsys.readouterr().err) is warned

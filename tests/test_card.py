@@ -195,3 +195,34 @@ def test_module_card_rejects_oca_module_from_another_branch():
 def test_module_card_rejects_freeform_oca_ref_and_bad_date():
     assert card_mod.validate(_module_card("some oca module I remember"))
     assert card_mod.validate(_module_card(GOOD_OCA.replace("2025-01-01", "last-year")))
+
+
+def test_oca_ref_is_checked_against_the_local_catalog_when_one_is_built(tmp_path, monkeypatch):
+    from checkbox.knowledge import oca as oca_mod
+
+    monkeypatch.setenv("CHECKBOX_DATA_DIR", str(tmp_path))
+    real = "OCA/sale-workflow/sale_tier_validation branch=18.0 license=AGPL-3 last_commit=unknown"
+    fake = "OCA/made-up/fake_mod branch=18.0 license=AGPL-3 last_commit=unknown"
+    # No catalog yet: the shape is all that can be checked.
+    assert card_mod.validate(_module_card(fake)) == []
+    row = {"name": "N", "summary": "s", "version": "18.0", "repo": "sale-workflow"}
+    oca_mod.write_catalog(
+        tmp_path / "oca" / "18.0.sqlite",
+        [{**row, "technical_name": "sale_tier_validation"}],
+        extra={"repos_failed": "0"},
+    )
+    assert card_mod.validate(_module_card(real)) == []
+    assert any("not in the local OCA catalog" in e for e in card_mod.validate(_module_card(fake)))
+    # An incomplete catalog proves nothing about absence.
+    oca_mod.write_catalog(
+        tmp_path / "oca" / "18.0.sqlite",
+        [{**row, "technical_name": "sale_tier_validation"}],
+        extra={"repos_failed": "3"},
+    )
+    assert card_mod.validate(_module_card(fake)) == []
+
+
+def test_lint_pii_ignores_document_numbers_but_still_flags_vat_numbers():
+    assert card_mod.lint_pii("see PO2024000123 and SO12345678, invoice INV202400017") == []
+    assert card_mod.lint_pii("customer VAT FR12345678901")
+    assert card_mod.lint_pii("customer VAT BE0123456789")

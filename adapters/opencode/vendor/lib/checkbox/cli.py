@@ -273,7 +273,15 @@ def cmd_search(args: argparse.Namespace) -> int:
         all_versions=args.all_versions,
     )
     if prof.odoo_version and (not kinds or "oca" in kinds):
-        missing = oca_mod.missing_repos(data_dir() / "oca" / f"{prof.odoo_version}.sqlite")
+        catalog = data_dir() / "oca" / f"{prof.odoo_version}.sqlite"
+        built = oca_mod.built_before(catalog)
+        if built:
+            print(
+                f"note: the OCA catalog for {prof.odoo_version} was built on {built}; modules "
+                "published since are missing -- `checkbox oca build --force` refreshes it",
+                file=sys.stderr,
+            )
+        missing = oca_mod.missing_repos(catalog)
         if missing:
             print(
                 f"warning: the OCA catalog for {prof.odoo_version} is incomplete ({missing} "
