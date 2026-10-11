@@ -59,7 +59,12 @@ def tool_target(payload: dict[str, Any]) -> Path | None:
     """Absolute path of the file a Write/Edit payload names, or None.
     A relative `file_path` is relative to `cwd`, not to the project root."""
     tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
+    file_path = (
+        tool_input.get("file_path")
+        or tool_input.get("notebook_path")  # NotebookEdit
+        or tool_input.get("path")
+        or ""
+    )
     if not file_path:
         return None
     return (Path(payload.get("cwd") or ".") / file_path).resolve()

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from checkbox.profile import Profile
+from checkbox.profile import VALID_EDITIONS, VALID_HOSTING, Profile, _looks_like_version
 
 _RULES_DIR = Path(__file__).resolve().parent.parent.parent / "rules"
 
@@ -44,20 +44,31 @@ def _studio_clause(profile: Profile) -> str:
     return ", Studio" if profile.edition == "enterprise" else ""
 
 
+def _clean(profile: Profile) -> tuple[str | None, str | None, str | None]:
+    """(version, edition, hosting), each None unless it is exactly what the
+    field may hold. profile.json is committed in client repositories and this
+    text goes into the agent's context: nothing free-form is rendered."""
+    version = profile.odoo_version
+    return (
+        version if version and _looks_like_version(version) else None,
+        profile.edition if profile.edition in VALID_EDITIONS else None,
+        profile.hosting if profile.hosting in VALID_HOSTING else None,
+    )
+
+
 def _profile_line(profile: Profile) -> str:
-    if not profile.odoo_version:
+    version, edition, hosting = _clean(profile)
+    if not version:
         return "not detected yet -- run /checkbox:init"
-    edition = profile.edition or "unknown edition"
-    hosting = profile.hosting or "unknown hosting"
-    return f"{profile.odoo_version} / {edition} / {hosting}"
+    return f"{version} / {edition or 'unknown edition'} / {hosting or 'unknown hosting'}"
 
 
 def _placeholders(profile: Profile, mode: str) -> dict[str, str]:
     return {
         "profile_line": _profile_line(profile),
         "mode": mode,
-        "version": profile.odoo_version or "an undetected version",
-        "edition": profile.edition or "an undetected edition",
+        "version": _clean(profile)[0] or "an undetected version",
+        "edition": _clean(profile)[1] or "an undetected edition",
         "studio_clause": _studio_clause(profile),
         "hosting_clause": _hosting_clause(profile),
     }

@@ -460,3 +460,21 @@ def test_no_tier_block_when_the_card_already_declares_the_classified_tier(tmp_pa
     post_edit._run(_edit(root))
     assert "declares tier" not in capsys.readouterr().out
     assert stop._run({"cwd": str(root), "session_id": "s1"}) == 0
+
+
+def test_notebook_edits_are_guarded_like_any_other_file_edit(tmp_path, capsys):
+    root = _project(tmp_path)
+    payload = {
+        "cwd": str(root),
+        "tool_name": "NotebookEdit",
+        "tool_input": {"notebook_path": "addons/mymod/notebooks/x.ipynb"},
+    }
+    pre_edit._run(payload)
+    assert _decision(capsys) == "deny"
+    hooks_json = json.loads(
+        (REPO_ROOT / "plugins" / "checkbox" / "hooks" / "hooks.json").read_text(encoding="utf-8")
+    )
+    for event in ("PreToolUse", "PostToolUse"):
+        assert "Write|Edit|NotebookEdit" in [
+            entry.get("matcher") for entry in hooks_json["hooks"][event]
+        ]
