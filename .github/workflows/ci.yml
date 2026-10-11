@@ -8,27 +8,60 @@ on:
 jobs:
   fast-checks:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
-      - run: pip install -e ".[dev]"
+      # The mcp extra is what lets tests/test_mcp_server.py run instead of
+      # skipping at pytest.importorskip("mcp").
+      - run: pip install -e ".[dev,mcp]"
 
       - run: ruff check .
       - run: ruff format --check .
+
+      # Risk rules are Odoo facts: fetch only the files each overlay cites
+      # and verify every model/method entry against them.
+      - name: Verify risk rules against Odoo source
+        run: |
+          for v in 17.0 18.0 19.0; do
+            python3 scripts/fetch_rule_sources.py --version "$v" --dest ".odoo-src/$v"
+            plugins/checkbox/bin/checkbox rules verify --version "$v" --odoo-src ".odoo-src/$v"
+          done
+
       - run: pytest -q
+        env:
+          ODOO17_SRC: .odoo-src/17.0
+          ODOO18_SRC: .odoo-src/18.0
+          ODOO19_SRC: .odoo-src/19.0
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       # claude plugin validate is a local schema check, no auth needed
-      # (verified against code.claude.com/docs, 2026-09-17).
-      - run: npm install -g @anthropic-ai/claude-code
+      # (verified against code.claude.com/docs, 2026-09-17). Pinned so a new
+      # CLI release cannot turn this job red on its own; bump deliberately.
+      - run: npm install -g @anthropic-ai/claude-code@2.1.296
       - run: claude plugin validate plugins/checkbox
       - run: claude plugin validate . --strict
 
       - run: python3 scripts/check_rule_copies.py
+
+  # The core is meant to run on Windows (ARCHITECTURE D12/D13) but has never
+  # been run there in CI. Informational until it has been green once.
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
