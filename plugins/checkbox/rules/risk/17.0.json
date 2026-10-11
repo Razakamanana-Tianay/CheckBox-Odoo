@@ -1,7 +1,7 @@
 {
   "version": "17.0",
   "extends": "common",
-  "_verified": "checkbox rules verify --version 17.0 --odoo-src .odoo-src/17.0, 2026-09-15, against a sparse clone of github.com/odoo/odoo@17.0 (odoo/addons/base, addons/account, addons/stock)",
+  "_verified": "checkbox rules verify --version 17.0 --odoo-src .odoo-src/17.0, 2026-10-11, against the cited files fetched from raw.githubusercontent.com/odoo/odoo/17.0/ by scripts/fetch_rule_sources.py",
   "models": {
     "account.move": {
       "tier": "red",
@@ -25,6 +25,62 @@
         "button_validate": "red"
       },
       "source": "addons/stock/models/stock_picking.py"
+    },
+    "account.move.line": {
+      "tier": "red",
+      "methods": {
+        "reconcile": "red"
+      },
+      "source": "addons/account/models/account_move_line.py"
+    },
+    "account.payment": {
+      "tier": "red",
+      "methods": {
+        "action_post": "red"
+      },
+      "source": "addons/account/models/account_payment.py"
+    },
+    "account.tax": {
+      "tier": "red",
+      "methods": {},
+      "source": "addons/account/models/account_tax.py"
+    },
+    "account.partial.reconcile": {
+      "tier": "red",
+      "methods": {},
+      "source": "addons/account/models/account_partial_reconcile.py"
+    },
+    "account.bank.statement.line": {
+      "tier": "red",
+      "methods": {},
+      "source": "addons/account/models/account_bank_statement_line.py"
+    },
+    "stock.move.line": {
+      "tier": "red",
+      "methods": {
+        "_action_done": "red"
+      },
+      "source": "addons/stock/models/stock_move_line.py"
+    },
+    "stock.quant": {
+      "tier": "red",
+      "methods": {
+        "_update_available_quantity": "red"
+      },
+      "source": "addons/stock/models/stock_quant.py"
+    },
+    "stock.valuation.layer": {
+      "tier": "red",
+      "methods": {},
+      "source": "addons/stock_account/models/stock_valuation_layer.py"
+    },
+    "ir.sequence": {
+      "tier": "red",
+      "methods": {
+        "_next": "red",
+        "next_by_code": "red"
+      },
+      "source": "odoo/addons/base/models/ir_sequence.py"
     }
   }
 }

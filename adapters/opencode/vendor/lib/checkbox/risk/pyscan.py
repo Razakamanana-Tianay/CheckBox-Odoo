@@ -110,6 +110,78 @@ def _scan_call(node: ast.Call, rules: dict[str, Any], path: Path) -> dict[str, A
     )
 
 
+_ORM_WRITES = ("write", "create", "unlink")
+
+
+def _env_model(node: ast.AST) -> str | None:
+    """The model in the nearest `env['model']` below *node* in a call chain
+    (`self.env['m'].sudo().search(...).write` -> 'm')."""
+    while True:
+        if isinstance(node, ast.Subscript):
+            base, key = node.value, node.slice
+            is_env = (isinstance(base, ast.Attribute) and base.attr == "env") or (
+                isinstance(base, ast.Name) and base.id == "env"
+            )
+            if is_env and isinstance(key, ast.Constant) and isinstance(key.value, str):
+                return key.value
+            node = base
+        elif isinstance(node, ast.Call):
+            node = node.func
+        elif isinstance(node, ast.Attribute):
+            node = node.value
+        else:
+            return None
+
+
+def _scan_patterns(node: ast.AST, rules: dict[str, Any], path: Path) -> list[dict[str, Any]]:
+    """The `python_patterns` rules of common.json (checkbox policy, §6.1/§4.3)."""
+    patterns = rules.get("python_patterns", {})
+    models = rules.get("models", {})
+    found: list[tuple[str, str, str]] = []
+    if isinstance(node, ast.Call):
+        kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+
+        def is_true(name: str) -> bool:
+            value = kwargs.get(name)
+            return isinstance(value, ast.Constant) and value.value is True
+
+        func = node.func
+        if is_true("su") and "su_true" in patterns:
+            found.append(("python:su_true", patterns["su_true"]["tier"], "su_true"))
+        if (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "fields"
+            and "compute" in kwargs
+            and is_true("store")
+            and "stored_compute" in patterns
+        ):
+            found.append(
+                ("python:stored_compute", patterns["stored_compute"]["tier"], "stored_compute")
+            )
+        if isinstance(func, ast.Attribute) and func.attr in _ORM_WRITES and "orm_write" in patterns:
+            model = _env_model(func.value)
+            if model in models:
+                found.append(
+                    (f"orm_write:{model}", models[model].get("tier", "green"), "orm_write")
+                )
+    elif isinstance(node, ast.Assign) and "monkeypatch" in patterns:
+        methods = {name for entry in models.values() for name in entry.get("methods", {})}
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Attribute)
+                and target.attr in methods
+                and isinstance(target.value, ast.Name)
+                and target.value.id not in ("self", "cls")
+            ):
+                found.append(("python:monkeypatch", patterns["monkeypatch"]["tier"], "monkeypatch"))
+    return [
+        _finding(rule_id, tier, path, node.lineno, patterns[key].get("detail", ""))
+        for rule_id, tier, key in found
+        if tier != "green"
+    ]
+
+
 def _scan_controller_decorators(
     node: ast.FunctionDef | ast.AsyncFunctionDef, rules: dict[str, Any], path: Path
 ) -> list[dict[str, Any]]:
@@ -160,6 +232,7 @@ def scan(path: Path, rules: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     models = rules.get("models", {})
     for node in ast.walk(tree):
+        findings.extend(_scan_patterns(node, rules, path))
         if isinstance(node, ast.ClassDef):
             findings.extend(_scan_class(node, models, path))
         elif isinstance(node, ast.Call):
